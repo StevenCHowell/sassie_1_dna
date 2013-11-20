@@ -1,4 +1,4 @@
-# $Id: cgDNA_move.py,v 1.4 2013-11-20 16:06:11 schowell Exp $
+# $Id: cgDNA_move.py,v 1.5 2013-11-20 16:29:27 schowell Exp $
 import sassie.sasmol.sasmol as sasmol
 import numpy as np,string,os,locale,sys,random
 
@@ -62,10 +62,10 @@ def make_bead_model(all_atom_pdb):
 #        print 'type(index) = ',type(cg_dna.index())
         index = cg_dna.index()
 
-        coor = cg_dna.coor()[0]
+#sh        coor = cg_dna.coor()[0]
+#sh        comment = 'test'
+#sh        write_xyz('cg_dna.xyz',coor,comment,frame)
 
-        comment = 'test'
-        write_xyz('cg_dna.xyz',coor,comment,frame)
         infile=open('dum.pdb','w')
         for i in xrange(cg_dna.natoms()):
                 this_index = index[i]
@@ -78,9 +78,11 @@ def make_bead_model(all_atom_pdb):
 
         infile.write('END\n')
         infile.close()
+        os.remove('dum.pdb') # remove the temporary pdb file
 
         cg_dna.write_pdb("cg_test.pdb",frame,'w')
-        cg_dna.write_dcd("cg_test.dcd")
+
+#sh        cg_dna.write_dcd("cg_test.dcd")
 
         return cg_dna
 
@@ -267,7 +269,7 @@ if __name__ == "__main__":
 
         print '\n\n\n\n'
         
-        nsteps = 999
+        nsteps = 9
         lp = .0530          # persistence length (actual lp=530A)
         w = 20        # width of dsDNA (actual between 22 & 26) should be < l
 
