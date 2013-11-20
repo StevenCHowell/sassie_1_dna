@@ -1,4 +1,4 @@
-% $Id: cgDNA_move.py,v 1.3 2013-11-20 16:00:51 schowell Exp $
+# $Id: cgDNA_move.py,v 1.4 2013-11-20 16:06:11 schowell Exp $
 import sassie.sasmol.sasmol as sasmol
 import numpy as np,string,os,locale,sys,random
 
