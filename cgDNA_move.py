@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# $Id: cgDNA_move.py,v 1.8 2013-12-12 18:25:20 schowell Exp $
+# $Id: cgDNA_move.py,v 1.9 2013-12-12 18:52:14 schowell Exp $
 import sassie.sasmol.sasmol as sasmol
 import numpy as np,string,os,locale,sys,random
 
@@ -18,7 +18,7 @@ def write_xyz(filename,coor,comment,frame):
         outfile.close()
 
         return
-
+ 
 
 def make_bead_model(all_atom_pdb):
         '''
@@ -205,6 +205,7 @@ def align2z(coor4):
                         (Axz[1][0], Axz[1][1]) = (v/d1,  u/d1)  
                         print 'Axz= \n', Axz
                 else:
+                        print 'v < ', small
                         print 'already aligned to xz-plane'
 
                         # align to the z-axis
@@ -473,8 +474,8 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w):
                 # print '(dU,dUb,dUwca,p,rand) =', (dU,Ub1-Ub0, Uwca1-Uwca0, p, test)
 
                 # if accepted write new coordinates, else write old again
-                if True:
-                #if test < p:
+                #if True:
+                if test < p:
                         print 'wrote new dcd frame (end of loop',i,' trial_bead=',trial_bead,')'+' accepted new configuration'
                         cg_dna.coor()[0] = np.copy(coor)
                 else :
@@ -494,7 +495,7 @@ if __name__ == "__main__":
 
         print '\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n'
 
-        nsteps = 10
+        nsteps = 100
         lp = .0530          # persistence length (actual lp=530A)
         w = 20        # width of dsDNA (actual between 22 & 26) should be < l
 
