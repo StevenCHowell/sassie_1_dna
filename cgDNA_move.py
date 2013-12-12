@@ -1,6 +1,7 @@
-# $Id: cgDNA_move.py,v 1.7 2013-12-11 05:17:26 schowell Exp $
+#!/usr/bin/python
+# $Id: cgDNA_move.py,v 1.8 2013-12-12 18:25:20 schowell Exp $
 import sassie.sasmol.sasmol as sasmol
-import numpy as numpy,string,os,locale,sys,random
+import numpy as np,string,os,locale,sys,random
 
 def write_xyz(filename,coor,comment,frame):
 
@@ -45,7 +46,7 @@ def make_bead_model(all_atom_pdb):
 
         cg_natoms = cg_dna.natoms()
 #        print 'cg_natoms = ',cg_natoms
-        new_coor = numpy.zeros((1,cg_natoms,3),numpy.float)
+        new_coor = np.zeros((1,cg_natoms,3),np.float)
 #        print new_coor
 
         for i in xrange(cg_natoms):
@@ -118,7 +119,7 @@ def make_model(all_atom_pdb,chain1,chain2,atoms1,atoms2):
 
         cg_natoms = cg_dna.natoms()
         print 'cg_natoms = ',cg_natoms
-        new_coor = numpy.zeros((1,cg_natoms,3),numpy.float)
+        new_coor = np.zeros((1,cg_natoms,3),np.float)
 #        print new_coor
 
         for i in xrange(cg_natoms):
@@ -163,51 +164,71 @@ def make_model(all_atom_pdb,chain1,chain2,atoms1,atoms2):
 
         #sh need to generate the local coordinates of all the atoms in each bead relative to the bead's origin
         #sh need to generate the local coordinates of each bead
-        vecXYZ = numpy.zeros((cg_natoms*3,3))
+        vecXYZ = np.zeros((cg_natoms*3,3))
         vecXYZ[0:cg_natoms] = [1,0,0]
         vecXYZ[cg_natoms:2*cg_natoms] = [0,1,0]
         vecXYZ[2*cg_natoms:3*cg_natoms] = [0,0,1]
         return (cg_dna, vecXYZ)
 
 def move2origin(coor4):
-        T    = numpy.eye(4,dtype=numpy.float)
-        Ti   = numpy.copy(T)
-        T[3,0:3] = -coor4[0,3]
-        Ti[3,0:3] = coor4[0,3]
+        T    = np.eye(4,dtype=np.float)
+        Ti   = np.copy(T)
+        #s print 'coor passed to T, Ti:\n',coor4
+        #s print 'size = ', coor4.shape
+        if not coor4.shape < (1,4):
+                T[3,0:3] = -coor4[0,0:3]
+                Ti[3,0:3] = coor4[0,0:3]
+      
+        #s print 'T:\n',T
+        #s print 'test:\n',np.dot(coor4,T)
+        #s print 'Ti:\n',Ti
+        #s print 'testI:\n',np.dot(np.dot(coor4,T),Ti)
         return (T, Ti)
 
 def align2z(coor4):
-        Axz  = numpy.eye(4,dtype=numpy.float)
-        Az   = numpy.eye(4,dtype=numpy.float)
-        
-        if not coor4.shape < (4,1):
+        Axz  = np.eye(4,dtype=np.float)
+        Az   = np.eye(4,dtype=np.float)
+        assert all(coor4[0] == [0., 0., 0., 1.,]), "coordinates passed to align2z were not translated to the origin"
+
+        if coor4.shape > (1, 4):
                 small = 1E-14 # small limit to make sure not dividing by zero
                 
                 # (u, v, w) pointing from bead0 to bead1
-                (u, v, w) = coor4[1,0:3] - coor4[0,0:3]
-                #s print '[',u,',',v,',',w,']'
+                (u, v, w) = coor4[1,0:3]
+                print '(u, v, w) = ', (u,v,w)
                 
                 # align to the x-z plane
-                d1 = numpy.sqrt(u**2+v**2)
-                if d1 > small:
+                d1 = np.sqrt(u**2+v**2)
+                if v > small:
                         # print '(u, v, d1) =', (u, v, d1)
                         (Axz[0][0], Axz[0][1]) = (u/d1, -v/d1)
                         (Axz[1][0], Axz[1][1]) = (v/d1,  u/d1)  
-                        
+                        print 'Axz= \n', Axz
+                else:
+                        print 'already aligned to xz-plane'
+
                         # align to the z-axis
-                d2 = numpy.sqrt(u**2+v**2+w**2)
-                if d2 > small:
-                        (Az[0][0], Az[0][2]) = (w/d2,   d1/d2)
-                        (Az[2][0], Az[2][2]) = (-d1/d2,  w/d2)
-                        
-        A = numpy.dot(Axz,Az)
-        Ai = numpy.dot(Az.transpose(),Axz.transpose())
-        # print "Axz = \n", Axz
-        # print "Az = \n", Az
-        #s print "these should be identities:"
-        #s print numpy.dot(Az,Az.transpose())
-        #s print numpy.dot(Axz,Axz.transpose())
-        #s print numpy.dot(A,Ai)
+                d2 = np.sqrt(u**2+v**2+w**2)
+                if d1 > small:
+                        (Az[0][0], Az[0][2]) = (w/d2,  d1/d2)
+                        (Az[2][0], Az[2][2]) = (-d1/d2, w/d2)
+                        print 'Az= \n', Az
+                else:
+                        print 'already aligned to z-axis'                        
+        else:
+                print 'no point to align'
+
+        A = np.dot(Axz,Az)
+        Ai = np.dot(Az.transpose(),Axz.transpose())
+        # print 'coor passed to A, Ai:\n',coor4
+        #s print '[coor] x [Axz]:\n',np.dot(coor4,Axz)
+        # print 'AxzI test:\n',np.dot(np.dot(coor4,Axz),Axz.transpose())
+        #s print "Axz = \n", Axz
+        #s print "Az = \n", Az
+        #s print "these 3 should be identities:"
+        #s print np.dot(Az,Az.transpose())
+        #s print np.dot(Axz,Axz.transpose())
+        #s print np.dot(A,Ai)
         return (A, Ai)
         
 
@@ -229,10 +250,10 @@ def beadRotate(coor3,vecX,vecY,vecZ,thetas,nSoft):
         # make sure the number of cg beads and orientation vectors match (this will not include any rigid components)
         assert (natoms,col) == vecX.shape == vecY.shape == vecZ.shape, "different number of bead origins and orientations"
 
-        coor4 = numpy.ones((natoms,4),numpy.float)
-        X = numpy.copy(coor4)
-        Y = numpy.copy(coor4)
-        Z = numpy.copy(coor4)
+        coor4 = np.ones((natoms,4),np.float)
+        X = np.copy(coor4)
+        Y = np.copy(coor4)
+        Z = np.copy(coor4)
         coor4[:,0:3] = coor3
         X[:,0:3] = vecX
         Y[:,0:3] = vecY
@@ -241,22 +262,23 @@ def beadRotate(coor3,vecX,vecY,vecZ,thetas,nSoft):
 
         # create the translation-rotation matrix
         # This is intended to be multiplied from the right (unlike standard matrix multiplication)
-        # so as not to require changing the coordinate array.
-        tx = thetas[0]*(numpy.pi/180.0)
-        ty = thetas[1]*(numpy.pi/180.0)
-        tz = thetas[2]*(numpy.pi/180.0)
-        cx = numpy.cos(tx)
-        sx = numpy.sin(tx)
-        cy = numpy.cos(ty)
-        sy = numpy.sin(ty)
-        cz = numpy.cos(tz)
-        sz = numpy.sin(tz)
-        (x, y, z) = coor3[0,:]
+        # so as not to require transing the coordinate vectors.
+        tx = thetas[0]*(np.pi/180.0)
+        ty = thetas[1]*(np.pi/180.0)
+        tz = thetas[2]*(np.pi/180.0)
+        cx = np.cos(tx)
+        sx = np.sin(tx)
+        cy = np.cos(ty)
+        sy = np.sin(ty)
+        cz = np.cos(tz)
+        sz = np.sin(tz)
+        #(x, y, z) = coor3[0,:]
+        #print 'HERE ---->',  (x, y, z)
         
         # initialize the transformation pieces
-        Rx   = numpy.eye(4,dtype=numpy.float)
-        Ry   = numpy.eye(4,dtype=numpy.float)
-        Rz   = numpy.eye(4,dtype=numpy.float)
+        Rx   = np.eye(4,dtype=np.float)
+        Ry   = np.eye(4,dtype=np.float)
+        Rz   = np.eye(4,dtype=np.float)
 
         (Rx[1][1], Rx[1][2]) = ( cx, sx)
         (Rx[2][1], Rx[2][2]) = (-sx, cx)  
@@ -270,28 +292,40 @@ def beadRotate(coor3,vecX,vecY,vecZ,thetas,nSoft):
         # print 'Ry:\n', Ry
         # print 'Rz:\n', Rz
 
-        Rxyz = numpy.dot(numpy.dot(Rx, Ry), Rz)
-        print "Rxyz = \n", Rxyz
-
-        for i in xrange(nSoft):
-                (T, Ti) = move2origin(coor4[i:])
-                coor4[i:] = numpy.dot(coor4[i:],T)  # move to origin
+        print 'original coor:\n', coor4
+        (T0, Ti0) = move2origin(coor4)
+        coor4 = np.dot(coor4,T0)  # move to origin
+        print 'moved2origin coor:\n', coor4
                 
-                (A, Ai) = align2z(coor4[i:])
-                coor4[i:] = numpy.dot(coor4[i:],A) # align to z-axis 
-        
-                coor4[i:] = numpy.dot(coor4[i:],Rxyz)
-                print 'step %d' %i
-                print coor4
+        (A, Ai) = align2z(coor4)
+        coor4 = np.dot(coor4,A) # align to z-axis 
+        print 'aligned coor:\n', coor4
 
-                coor4[i:] = numpy.dot(coor4[i:],Ai)
-                coor4[i:] = numpy.dot(coor4[i:],Ti)
+        Rxyz = np.dot(np.dot(Rx, Ry), Rz)
+        #s print "Rxyz = \n", Rxyz
+        coor4 = np.dot(coor4,Rxyz) # rotate about first angle
+        print 'step 0 rotated coor:\n', coor4
 
+        # repeat rotation for softening the bend
+        for i in xrange(1,nSoft):
+                (T, Ti) = move2origin(coor4[i:])
+                coor4[i:] = np.dot(coor4[i:],T)  # move to origin
+                print 'moved2origin coor:\n',coor4
+
+                coor4[i:] = np.dot(coor4[i:],Rxyz)
+                print 'step %d' %i,'rotated coor:\n',coor4
+
+                coor4[i:] = np.dot(coor4[i:],Ti) # return to original position
+                print 'returned from origin coor:\n',coor4
                 # the coarse grained beads local coordinates should not be translated, only rotated
-                X[i:] = numpy.dot(X[i:],Rxyz)
-                Y[i:] = numpy.dot(Y[i:],Rxyz)
-                Z[i:] = numpy.dot(Z[i:],Rxyz)
+                X[i:] = np.dot(X[i:],Rxyz)
+                Y[i:] = np.dot(Y[i:],Rxyz)
+                Z[i:] = np.dot(Z[i:],Rxyz)
 
+        coor4 = np.dot(coor4,Ai)
+        print 'un-aligned:\n',coor4
+        coor4 = np.dot(coor4,Ti0)
+        print 'returned from origin coor:\n',coor4
         # this returns the modified positions and orientations for all but the first (reference) bead
         return (coor4[1:,0:3], X[1:,0:3], Y[1:,0:3], Z[1:,0:3])
 
@@ -304,8 +338,8 @@ def checkU(coor):
         erLim = 1e-3
         (r,c) = coor.shape
         u = coor[1:,:]-coor[:r-1,:]                 # u-vectors pointing from bead to bead
-        lu = numpy.sqrt(u[:,0]**2+u[:,1]**2+u[:,2]**2) # magnitues of u-vectors -> distance btwn beads
-        l = numpy.mean(lu[:])                          # average distance btwn bead 
+        lu = np.sqrt(u[:,0]**2+u[:,1]**2+u[:,2]**2) # magnitues of u-vectors -> distance btwn beads
+        l = np.mean(lu[:])                          # average distance btwn bead 
 
         #print '\n\ncoor:\n', coor
         #print 'u-vectors:\n', u
@@ -313,7 +347,7 @@ def checkU(coor):
         #print 'average magnitude of u =', l
         #print '\n\n'
 
-        test = numpy.abs(lu-l) > erLim  # check if any of the l-lengths are different
+        test = np.abs(lu-l) > erLim  # check if any of the l-lengths are different
         if test.any():
                 print 'ERROR: the beads are not uniformly spaced'
                 print 'u = \n',u
@@ -333,7 +367,7 @@ def energyBend(lpl,u):
         (nu,col) = u.shape          # nu = nbeads - 1
         uk0 = u[:nu-1,:]            # define u_k
         uk1 = u[1:,:]               # define u_k+1
-        res = nu-1-numpy.sum(uk0*uk1)  # calculate the sum of their products
+        res = nu-1-np.sum(uk0*uk1)  # calculate the sum of their products
 
         return res*lpl
 
@@ -352,7 +386,7 @@ def energyWCA(w,coor):
                 ri = coor[i,:]
                 for j in xrange(i+1,N):
                         rj = coor[j,:]
-                        rij = numpy.sqrt((ri[0]-rj[0])**2. + (ri[1]-rj[1])**2. + (ri[2]-rj[2])**2.)
+                        rij = np.sqrt((ri[0]-rj[0])**2. + (ri[1]-rj[1])**2. + (ri[2]-rj[2])**2.)
                         # print '(2^(1/6)*w, rij) = ', (test, rij)
                         if rij < test:
                                 res += (w/rij)**12.-(w/rij)**6.+0.25
@@ -382,7 +416,7 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w):
         outData.write(header)
 
         nbeads = cg_dna.natoms()  # need to change this so there could be components that are not the beads
-        coor = numpy.copy(cg_dna.coor()[0])
+        coor = np.copy(cg_dna.coor()[0])
 
         (u, l) = checkU(coor) # get the vectors pointing from bead to bead and make sure they are equidistant
 
@@ -404,9 +438,9 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w):
                 trial_bead = int((nbeads-1)*random.random())+1
                 print 'trial_bead =', trial_bead
 
-                thetaX = 360*random.random()
-                thetaY = 360*random.random()
-                thetaZ = 360*random.random() # want to make this about +/-5 degrees
+                thetaX = 180*random.random() - 90
+                thetaY = (180*random.random() - 90) * 0
+                thetaZ = (15*random.random() - 7.5) * 0# want to make this about +/-5 degrees
                 thetaXYZ = [thetaX/nSoft, thetaY/nSoft, thetaZ/nSoft]
                 
                 # generate a newly rotated model
@@ -414,14 +448,16 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w):
                 # print vecY[trial_bead-1:]
                 # print vecZ[trial_bead-1:]
 
-                print 'coor before:\n',coor
+                #print 'coor before:\n',coor
                 
-                for i in xrange(3):
-                        thetas = numpy.zeros(3)
-                        thetas[i] = thetaXYZ[i]
-                        print 'new thetas:', thetas
-                        (coor[trial_bead:],vecX[trial_bead:],vecY[trial_bead:],vecZ[trial_bead:]) = beadRotate(coor[trial_bead-1:],vecX[trial_bead-1:],vecY[trial_bead-1:],vecZ[trial_bead-1:],thetas,nSoft)
-                        print 'coor after\n',coor
+                #s tried to do x, y, then z but had problems with it
+                #s for i in xrange(3):
+                #s         thetas = np.zeros(3)
+                #s         thetas[i] = thetaXYZ[i]
+                #s         print 'new thetas:', thetas
+
+                (coor[trial_bead:],vecX[trial_bead:],vecY[trial_bead:],vecZ[trial_bead:]) = beadRotate(coor[trial_bead-1:],vecX[trial_bead-1:],vecY[trial_bead-1:],vecZ[trial_bead-1:],thetaXYZ,nSoft)
+                print 'coor after\n',coor
 
                 # calculate the change in energy (dU) and boltzman factor (p) for the new model
                 (u, l) = checkU(coor)
@@ -429,7 +465,7 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w):
                 Uwca1 = energyWCA(w,coor)
                 U_T1 =  Ub1 + Uwca1
                 dU = U_T1 - U_T0
-                p = numpy.exp(-dU)
+                p = np.exp(-dU)
                 test = random.random()
 
                 # output the results to a text file
@@ -440,10 +476,10 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w):
                 if True:
                 #if test < p:
                         print 'wrote new dcd frame (end of loop',i,' trial_bead=',trial_bead,')'+' accepted new configuration'
-                        cg_dna.coor()[0] = numpy.copy(coor)
+                        cg_dna.coor()[0] = np.copy(coor)
                 else :
                         print 'wrote new dcd frame (end of loop',i,' trial_bead=',trial_bead,')'
-                        coor = numpy.copy(cg_dna.coor()[0])   # reset the coordinates
+                        coor = np.copy(cg_dna.coor()[0])   # reset the coordinates
 
                 cg_dna.write_dcd_step(dcdOutFile,0,0)
                 
@@ -458,7 +494,7 @@ if __name__ == "__main__":
 
         print '\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n'
 
-        nsteps = 3
+        nsteps = 10
         lp = .0530          # persistence length (actual lp=530A)
         w = 20        # width of dsDNA (actual between 22 & 26) should be < l
 
@@ -467,10 +503,33 @@ if __name__ == "__main__":
 
 
         (cg_dna, vecXYZ) = make_model(all_atom_pdb, 1, 2, range(12), range(12))
-
         print cg_dna.coor
-
         dna_mc(nsteps,cg_dna,vecXYZ,lp,w)
+        
+        #test = np.eye(4)
+        #s est = np.zeros((10,4))
+        #s est[:,1] = range(10)
+        #s est[:,3] = 1
+        #s est[:,0] = range(10)
+        #s est[:,0] *= -1
+        #s or i in xrange(4):
+        #s        (T, Ti) = move2origin(test[i:])
+        #s        test[i:] = np.dot(test[i:],T)
+        #s        print 'T:\n', T
+        #s        print 'moved2origin:\n', test[i:]
+        #s 
+        #s        (A, Ai) = align2z(test[i:])
+        #s        print 'before align: \n', test[i:]
+        #s        test[i:] = np.dot(test[i:],A)
+        #s        print 'x A ->\n', A
+        #s        print 'aligned: \n', test[i:]
+        #s        test[i:] = np.dot(test[i:],Ai)
+        #s        print 'un-aligned:  \n', test[i:]
+        #s 
+        #s        test[i:] = np.dot(test[i:],Ti)
+        #s        print 'back2original:\n', test[i:]
+        #s 
+        #s rint test
 
 '''
 to do: 
