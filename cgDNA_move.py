@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# $Id: cgDNA_move.py,v 1.9 2013-12-12 18:52:14 schowell Exp $
+# $Id: cgDNA_move.py,v 1.10 2013-12-13 21:00:51 schowell Exp $
 import sassie.sasmol.sasmol as sasmol
 import numpy as np,string,os,locale,sys,random
 
@@ -30,7 +30,7 @@ def make_bead_model(all_atom_pdb):
         aa_dna.read_pdb(all_atom_pdb)
         natoms = aa_dna.natoms()
 
-        print 'natoms = ',natoms
+        # print 'natoms = ',natoms
 
         cg_dna = sasmol.SasMol(0)
         basis_filter = "(resname[i] == 'ADE' or resname[i] == 'GUA') and (name[i] == 'N1' and (resid[i] < 21) and segname[i]=='DNA1')"
@@ -99,7 +99,7 @@ def make_model(all_atom_pdb,chain1,chain2,atoms1,atoms2):
 
 
 
-        print 'natoms = ',natoms
+        # print 'natoms = ',natoms
 
         cg_dna = sasmol.SasMol(0)
         # select the cg beads coordinates from the PDB
@@ -118,7 +118,7 @@ def make_model(all_atom_pdb,chain1,chain2,atoms1,atoms2):
         diameter = 6.0*3.4
 
         cg_natoms = cg_dna.natoms()
-        print 'cg_natoms = ',cg_natoms
+        # print 'cg_natoms = ',cg_natoms
         new_coor = np.zeros((1,cg_natoms,3),np.float)
 #        print new_coor
 
@@ -127,8 +127,8 @@ def make_model(all_atom_pdb,chain1,chain2,atoms1,atoms2):
                 new_coor[0][i][2] = i*diameter
 
         cg_dna.setCoor(new_coor)
-        print new_coor
-        print cg_dna.coor()
+        # print new_coor
+        # print cg_dna.coor()
 
 #        charge = cg_dna.beta()
 #        cg_dna.setCharge(charge)
@@ -195,7 +195,7 @@ def align2z(coor4):
                 
                 # (u, v, w) pointing from bead0 to bead1
                 (u, v, w) = coor4[1,0:3]
-                print '(u, v, w) = ', (u,v,w)
+                #s print '(u, v, w) = ', (u,v,w)
                 
                 # align to the x-z plane
                 d1 = np.sqrt(u**2+v**2)
@@ -203,7 +203,7 @@ def align2z(coor4):
                         # print '(u, v, d1) =', (u, v, d1)
                         (Axz[0][0], Axz[0][1]) = (u/d1, -v/d1)
                         (Axz[1][0], Axz[1][1]) = (v/d1,  u/d1)  
-                        print 'Axz= \n', Axz
+                        # print 'Axz= \n', Axz
                 else:
                         print 'v < ', small
                         print 'already aligned to xz-plane'
@@ -213,7 +213,7 @@ def align2z(coor4):
                 if d1 > small:
                         (Az[0][0], Az[0][2]) = (w/d2,  d1/d2)
                         (Az[2][0], Az[2][2]) = (-d1/d2, w/d2)
-                        print 'Az= \n', Az
+                        # print 'Az= \n', Az
                 else:
                         print 'already aligned to z-axis'                        
         else:
@@ -293,40 +293,40 @@ def beadRotate(coor3,vecX,vecY,vecZ,thetas,nSoft):
         # print 'Ry:\n', Ry
         # print 'Rz:\n', Rz
 
-        print 'original coor:\n', coor4
+        # print 'original coor:\n', coor4
         (T0, Ti0) = move2origin(coor4)
         coor4 = np.dot(coor4,T0)  # move to origin
-        print 'moved2origin coor:\n', coor4
+        # print 'moved2origin coor:\n', coor4
                 
         (A, Ai) = align2z(coor4)
         coor4 = np.dot(coor4,A) # align to z-axis 
-        print 'aligned coor:\n', coor4
+        # print 'aligned coor:\n', coor4
 
         Rxyz = np.dot(np.dot(Rx, Ry), Rz)
         #s print "Rxyz = \n", Rxyz
         coor4 = np.dot(coor4,Rxyz) # rotate about first angle
-        print 'step 0 rotated coor:\n', coor4
+        # print 'step 0 rotated coor:\n', coor4
 
         # repeat rotation for softening the bend
         for i in xrange(1,nSoft):
                 (T, Ti) = move2origin(coor4[i:])
                 coor4[i:] = np.dot(coor4[i:],T)  # move to origin
-                print 'moved2origin coor:\n',coor4
+                # print 'moved2origin coor:\n',coor4
 
                 coor4[i:] = np.dot(coor4[i:],Rxyz)
-                print 'step %d' %i,'rotated coor:\n',coor4
+                # print 'step %d' %i,'rotated coor:\n',coor4
 
                 coor4[i:] = np.dot(coor4[i:],Ti) # return to original position
-                print 'returned from origin coor:\n',coor4
+                # print 'returned from origin coor:\n',coor4
                 # the coarse grained beads local coordinates should not be translated, only rotated
                 X[i:] = np.dot(X[i:],Rxyz)
                 Y[i:] = np.dot(Y[i:],Rxyz)
                 Z[i:] = np.dot(Z[i:],Rxyz)
 
         coor4 = np.dot(coor4,Ai)
-        print 'un-aligned:\n',coor4
+        # print 'un-aligned:\n',coor4
         coor4 = np.dot(coor4,Ti0)
-        print 'returned from origin coor:\n',coor4
+        # print 'returned from origin coor:\n',coor4
         # this returns the modified positions and orientations for all but the first (reference) bead
         return (coor4[1:,0:3], X[1:,0:3], Y[1:,0:3], Z[1:,0:3])
 
@@ -438,18 +438,17 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w):
 
                 trial_bead = int((nbeads-1)*random.random())+1
                 print 'trial_bead =', trial_bead
-
-                thetaX = 180*random.random() - 90
-                thetaY = (180*random.random() - 90) * 0
-                thetaZ = (15*random.random() - 7.5) * 0# want to make this about +/-5 degrees
+                
+                theta_max = 18
+                thetaz_max = 2 # this should be something small 
+                thetaX = theta_max * random.random() - theta_max/2
+                thetaY = theta_max * random.random() - theta_max/2
+                thetaZ = thetaz_max *random.random() - thetaz_max/2 
                 thetaXYZ = [thetaX/nSoft, thetaY/nSoft, thetaZ/nSoft]
                 
                 # generate a newly rotated model
-                # print vecX[trial_bead-1:]
-                # print vecY[trial_bead-1:]
-                # print vecZ[trial_bead-1:]
-
-                #print 'coor before:\n',coor
+    
+                #s print 'coor before:\n',coor
                 
                 #s tried to do x, y, then z but had problems with it
                 #s for i in xrange(3):
@@ -458,7 +457,7 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w):
                 #s         print 'new thetas:', thetas
 
                 (coor[trial_bead:],vecX[trial_bead:],vecY[trial_bead:],vecZ[trial_bead:]) = beadRotate(coor[trial_bead-1:],vecX[trial_bead-1:],vecY[trial_bead-1:],vecZ[trial_bead-1:],thetaXYZ,nSoft)
-                print 'coor after\n',coor
+                #s print 'coor after\n',coor
 
                 # calculate the change in energy (dU) and boltzman factor (p) for the new model
                 (u, l) = checkU(coor)
@@ -471,7 +470,7 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w):
 
                 # output the results to a text file
                 outData.write("%1.3e\t %1.3e\t %1.3e\t %0.3f\t %0.3f\t %0.3f\t %0.3f\t %d\t %0.1f\t %0.1f\n" %(dU, Ub1-Ub0, Uwca1-Uwca0, p, test, w, lp, trial_bead, thetaX, thetaY) )
-                # print '(dU,dUb,dUwca,p,rand) =', (dU,Ub1-Ub0, Uwca1-Uwca0, p, test)
+                print '(dU,dUb,dUwca,p,rand) =', (dU,Ub1-Ub0, Uwca1-Uwca0, p, test)
 
                 # if accepted write new coordinates, else write old again
                 #if True:
@@ -479,7 +478,7 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w):
                         print 'wrote new dcd frame (end of loop',i,' trial_bead=',trial_bead,')'+' accepted new configuration'
                         cg_dna.coor()[0] = np.copy(coor)
                 else :
-                        print 'wrote new dcd frame (end of loop',i,' trial_bead=',trial_bead,')'
+                        print 'wrote new dcd frame (end of loop',i,' trial_bead=',trial_bead,')'+' rejected new configuration'
                         coor = np.copy(cg_dna.coor()[0])   # reset the coordinates
 
                 cg_dna.write_dcd_step(dcdOutFile,0,0)
@@ -488,24 +487,63 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w):
         cg_dna.close_dcd_write(dcdOutFile)
         outData.close()
 
-        return
+        return cg_dna
 
+def makeLongDNA(n_lp):
+        print 'making DNA that is %d*lp long' %n_lp
+
+        #? how do I populate the elements necessary for a DNA pdb?
+        #? for a sasmol object?
+        
+        # 15 bp/bead or 51 A/bead (3.4 A/bp)
+
+        lp = 530 # persistence length in A
+        l = 51   # separation distance between beads
+
+        longDNA = sasmol.SasMol(0)
+        L = n_lp*lp
+        N = int(L/l)
+        natoms = N+1
+        longDNA._L = L
+        longDNA._natoms = natoms
+
+        longCoor = np.zeros((1,natoms,3),np.float)    # initialize the long DNA coordinates
+        longCoor[0][:,2] = range(natoms)      # set the z-values to the index of the array
+        longCoor *= l                   # scale the z-values to the right seperation
+        # print longCoor[-5:]
+
+        longDNA.setCoor(longCoor)
+
+        vecXYZ = np.zeros((natoms*3,3))
+        vecXYZ[0:natoms] = [1,0,0]
+        vecXYZ[natoms:2*natoms] = [0,1,0]
+        vecXYZ[2*natoms:3*natoms] = [0,0,1]
+        # (u, l) = checkU(cg_dna.coor()[0]) # u: vectors between beads, l: average distance
+        # n = L/l                         # number of times need to repeat the grain
+        # print '(l, L, n)', (l, L, n) 
+
+        return (longDNA, vecXYZ)
 
 if __name__ == "__main__":
 
-        print '\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n'
+        #        print '\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n'
 
-        nsteps = 100
-        lp = .0530          # persistence length (actual lp=530A)
-        w = 20        # width of dsDNA (actual between 22 & 26) should be < l
+        nsteps = 10
+        lp = .530          # persistence length (actual lp=530A)
+        w = 4.6        # width of dsDNA (actual between 22 & 26) should be < l
+        Llp = 100;     # L/lp
+        L = Llp*lp;
+        # all_atom_pdb = 'trimer_stacked.pdb'
 
-        all_atom_pdb = 'dna.pdb'
-        #s all_atom_pdb = '1zbb_tetra.pdb'
+        #s all_atom_pdb = 'dna.pdb'
+        #s (cg_dna, vecXYZ) = make_model(all_atom_pdb, 1, 2, range(12), range(12))
+        #s print cg_dna.coor()[0]
 
+        (cg_dna, vecXYZ) = makeLongDNA(10)
 
-        (cg_dna, vecXYZ) = make_model(all_atom_pdb, 1, 2, range(12), range(12))
-        print cg_dna.coor
-        dna_mc(nsteps,cg_dna,vecXYZ,lp,w)
+        cg_dna = dna_mc(nsteps,cg_dna,vecXYZ,lp,w)
+#        cg_dna.calcrg(0)
+#        print cg_dna.rg()
         
         #test = np.eye(4)
         #s est = np.zeros((10,4))
