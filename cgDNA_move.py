@@ -1,7 +1,9 @@
 #!/usr/bin/python
-# $Id: cgDNA_move.py,v 1.10 2013-12-13 21:00:51 schowell Exp $
+# $Id: cgDNA_move.py,v 1.11 2013-12-18 14:51:16 schowell Exp $
 import sassie.sasmol.sasmol as sasmol
-import numpy as np,string,os,locale,sys,random
+import numpy as np,string,os,locale,sys,random, pylab
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 def write_xyz(filename,coor,comment,frame):
 
@@ -204,9 +206,9 @@ def align2z(coor4):
                         (Axz[0][0], Axz[0][1]) = (u/d1, -v/d1)
                         (Axz[1][0], Axz[1][1]) = (v/d1,  u/d1)  
                         # print 'Axz= \n', Axz
-                else:
-                        print 'v < ', small
-                        print 'already aligned to xz-plane'
+                #else:
+                        #s print 'v < ', small
+                        # print 'already aligned to xz-plane'
 
                         # align to the z-axis
                 d2 = np.sqrt(u**2+v**2+w**2)
@@ -214,8 +216,8 @@ def align2z(coor4):
                         (Az[0][0], Az[0][2]) = (w/d2,  d1/d2)
                         (Az[2][0], Az[2][2]) = (-d1/d2, w/d2)
                         # print 'Az= \n', Az
-                else:
-                        print 'already aligned to z-axis'                        
+                #else:
+                        # print 'already aligned to z-axis'                        
         else:
                 print 'no point to align'
 
@@ -264,17 +266,17 @@ def beadRotate(coor3,vecX,vecY,vecZ,thetas,nSoft):
         # create the translation-rotation matrix
         # This is intended to be multiplied from the right (unlike standard matrix multiplication)
         # so as not to require transing the coordinate vectors.
+        # print '(tx, ty, tz) in degrees:', thetas
         tx = thetas[0]*(np.pi/180.0)
         ty = thetas[1]*(np.pi/180.0)
         tz = thetas[2]*(np.pi/180.0)
+        # print '(tx, ty, tz) in radians:',(tx,ty,tz)
         cx = np.cos(tx)
         sx = np.sin(tx)
         cy = np.cos(ty)
         sy = np.sin(ty)
         cz = np.cos(tz)
         sz = np.sin(tz)
-        #(x, y, z) = coor3[0,:]
-        #print 'HERE ---->',  (x, y, z)
         
         # initialize the transformation pieces
         Rx   = np.eye(4,dtype=np.float)
@@ -340,7 +342,7 @@ def checkU(coor):
         (r,c) = coor.shape
         u = coor[1:,:]-coor[:r-1,:]                 # u-vectors pointing from bead to bead
         lu = np.sqrt(u[:,0]**2+u[:,1]**2+u[:,2]**2) # magnitues of u-vectors -> distance btwn beads
-        l = np.mean(lu[:])                          # average distance btwn bead 
+        l = np.mean(lu)                          # average distance btwn bead 
 
         #print '\n\ncoor:\n', coor
         #print 'u-vectors:\n', u
@@ -358,21 +360,46 @@ def checkU(coor):
         
         return (u, l)
 
-def energyBend(lpl,u):
+def checkMag(vec):
+        '''
+        module to check that the magnitude of all vectors is the same
+        '''
+        erLim = 1e-3
+        (r,c) = vec.shape
+        m = np.zeros(r)
+        for i in xrange(r):
+                m[i] = mag(vec[i])
+        
+        avMag = np.mean(m)
+        test = np.abs(m-avMag) > erLim  # check if any of the l-lengths are different
+        if test.any():
+                print 'ERROR: the vectors do not have uniformly magnitude'
+                print 'm = \n',m
+                print test
+                # print 'difference = ', u[:,2] - l
+                print 'vec = ', vec
+        
+        return (avMag)
+
+def energyBend(lpl,u,l):
         ''' 
         this function finds the E/kT for N beads connected by N-1 rods
         lpl is the persistence length divided by the rod length: lp/l
-        u contains the N-1 vectors representing each rod
+        u contains the N-1 unit vectors representing each rod
         '''
 
         (nu,col) = u.shape          # nu = nbeads - 1
-        uk0 = u[:nu-1,:]            # define u_k
-        uk1 = u[1:,:]               # define u_k+1
-        res = nu-1-np.sum(uk0*uk1)  # calculate the sum of their products
+        uk0 = u[:nu-1,:]/l            # define u_k
+        uk1 = u[1:,:]/l               # define u_k+1
+        checkMag(u)
+        #s print 'uk0:\n',uk0
+        #s print 'uk1:\n',uk1
+        #s print 'uk0*uk1\n:',uk0*uk1
+        res = (nu-1) - np.sum(uk0*uk1)  # calculate the sum of their products
 
         return res*lpl
 
-def energyWCA(w,coor):
+def energyWCA(w,coor,WCA,trial_bead):
         '''
         this function finds the Weeks-Chandler-Anderson repulsion E/kt for N
         beads connected by N-1 rods together representing a worm-like chain.
@@ -383,38 +410,40 @@ def energyWCA(w,coor):
         test = 2.**(1./6.)*w
         (N, col) = coor.shape
         res = 0.0
-        for i in xrange(N):
+        for i in xrange(trial_bead,N):
                 ri = coor[i,:]
-                for j in xrange(i+1,N):
+                for j in xrange(0,i):
+                        print '(i,j) ',(i,j)
                         rj = coor[j,:]
                         rij = np.sqrt((ri[0]-rj[0])**2. + (ri[1]-rj[1])**2. + (ri[2]-rj[2])**2.)
-                        # print '(2^(1/6)*w, rij) = ', (test, rij)
+                        print '(2^(1/6)*w, rij) = ', (test, rij)
                         if rij < test:
-                                res += (w/rij)**12.-(w/rij)**6.+0.25
-
+                                # print WCA.shape
+                                WCA[i,j] = (w/rij)**12.-(w/rij)**6.+0.25
+                                print WCA
+        res = 4*np.sum(WCA)
         #s print 'U_wca =', res*4
-        return res*4
+        return (res, WCA)
+# rewrite this using sassie -> simulate -> energy -> extensions -> non_bonding
 
-
-def dna_mc(nsteps,cg_dna,vecXYZ,lp,w):
+def dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft=3):
         '''
         this function perform nsteps Monte-Carlo moves on the cg_dna
         '''
-        nSoft = 3  # number of beads to seperate the move over
 
         dcdOutFile = cg_dna.open_dcd_write("cg_dna_moves.dcd")        
         import time
         timestr = time.strftime("%y%m%d")
         fName = timestr + 'dnaMoves.o'
-        print '\n' + fName + ' contains result paramaters'
+        #s print '\n' + fName + ' contains result paramaters'
         #s if os.path.exists(fName):
         #s         header = ''
         #s else:
         # (dU, Ub1-Ub0, Uwca1-Uwca0, p, test, w, lp, trial_bead, thetaX, thetaY)
-        header = '# dU\t\t dU_b\t\t dU_WCA\t\t prob\t random\t w\t lp\t bead\t thetaX\t thetaY\n'
 
-        outData = open(fName,'a')
-        outData.write(header)
+        #s header = '# dU\t\t dU_b\t\t dU_WCA\t\t prob\t random\t w\t lp\t bead\t thetaX\t thetaY\n'
+        #s outData = open(fName,'a')
+        #s outData.write(header)
 
         nbeads = cg_dna.natoms()  # need to change this so there could be components that are not the beads
         coor = np.copy(cg_dna.coor()[0])
@@ -424,9 +453,11 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w):
         lpl = lp/l  # setup the presistence length paramater
 
         # calculate the energy of the starting positions
-        Ub0 = energyBend(lpl,u)
-        Uwca0 = energyWCA(w,coor)
+        wca0 = np.zeros((nbeads,nbeads))
+        Ub0 = energyBend(lpl,u,l)
+        (Uwca0, wca0) = energyWCA(w,coor,wca0,0)
         U_T0 = Ub0 + Uwca0
+        wca1 = np.copy(wca0)
 
         # split vecXYZ into three matrices
         cg_natoms = cg_dna.natoms()
@@ -434,13 +465,15 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w):
         vecY = vecXYZ[cg_natoms:2*cg_natoms]
         vecZ = vecXYZ[2*cg_natoms:3*cg_natoms]
 
+        a = 0 # times configuration was accepted
+        r = 0 # times configuration was rejected
+
         for i in xrange(nsteps):
 
                 trial_bead = int((nbeads-1)*random.random())+1
-                print 'trial_bead =', trial_bead
+                # print 'trial_bead =', trial_bead
                 
-                theta_max = 18
-                thetaz_max = 2 # this should be something small 
+                thetaz_max = np.float(theta_max)/10. # this should be something small 
                 thetaX = theta_max * random.random() - theta_max/2
                 thetaY = theta_max * random.random() - theta_max/2
                 thetaZ = thetaz_max *random.random() - thetaz_max/2 
@@ -448,46 +481,47 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w):
                 
                 # generate a newly rotated model
     
-                #s print 'coor before:\n',coor
-                
-                #s tried to do x, y, then z but had problems with it
                 #s for i in xrange(3):
                 #s         thetas = np.zeros(3)
                 #s         thetas[i] = thetaXYZ[i]
                 #s         print 'new thetas:', thetas
 
+                #s print 'coor before:\n',coor
                 (coor[trial_bead:],vecX[trial_bead:],vecY[trial_bead:],vecZ[trial_bead:]) = beadRotate(coor[trial_bead-1:],vecX[trial_bead-1:],vecY[trial_bead-1:],vecZ[trial_bead-1:],thetaXYZ,nSoft)
                 #s print 'coor after\n',coor
 
                 # calculate the change in energy (dU) and boltzman factor (p) for the new model
                 (u, l) = checkU(coor)
-                Ub1 = energyBend(lpl,u)
-                Uwca1 = energyWCA(w,coor)
+                Ub1 = energyBend(lpl,u,l)
+                (Uwca1,wca1) = energyWCA(w,coor,wca0,trial_bead)
                 U_T1 =  Ub1 + Uwca1
                 dU = U_T1 - U_T0
                 p = np.exp(-dU)
                 test = random.random()
 
                 # output the results to a text file
-                outData.write("%1.3e\t %1.3e\t %1.3e\t %0.3f\t %0.3f\t %0.3f\t %0.3f\t %d\t %0.1f\t %0.1f\n" %(dU, Ub1-Ub0, Uwca1-Uwca0, p, test, w, lp, trial_bead, thetaX, thetaY) )
-                print '(dU,dUb,dUwca,p,rand) =', (dU,Ub1-Ub0, Uwca1-Uwca0, p, test)
+                #s outData.write("%1.3e\t %1.3e\t %1.3e\t %0.3f\t %0.3f\t %0.3f\t %0.3f\t %d\t %0.1f\t %0.1f\n" %(dU, Ub1-Ub0, Uwca1-Uwca0, p, test, w, lp, trial_bead, thetaX, thetaY) )
+                # print '(dU,dUb,dUwca,p,rand) =', (dU,Ub1-Ub0, Uwca1-Uwca0, p, test)
 
                 # if accepted write new coordinates, else write old again
                 #if True:
                 if test < p:
-                        print 'wrote new dcd frame (end of loop',i,' trial_bead=',trial_bead,')'+' accepted new configuration'
+                        #print 'wrote new dcd frame (end of loop',i,' trial_bead=',trial_bead,')'+' accepted new configuration'
+                        a += 1
                         cg_dna.coor()[0] = np.copy(coor)
+                        U_T0 = U_T1
                 else :
-                        print 'wrote new dcd frame (end of loop',i,' trial_bead=',trial_bead,')'+' rejected new configuration'
+                        #print 'wrote new dcd frame (end of loop',i,' trial_bead=',trial_bead,')'+' rejected new configuration'
+                        r += 1
                         coor = np.copy(cg_dna.coor()[0])   # reset the coordinates
 
-                cg_dna.write_dcd_step(dcdOutFile,0,0)
+                #s cg_dna.write_dcd_step(dcdOutFile,0,0)
                 
         # close output files
         cg_dna.close_dcd_write(dcdOutFile)
-        outData.close()
+        #s outData.close()
 
-        return cg_dna
+        return (cg_dna, vecXYZ, a, r)
 
 def makeLongDNA(n_lp):
         print 'making DNA that is %d*lp long' %n_lp
@@ -498,12 +532,13 @@ def makeLongDNA(n_lp):
         # 15 bp/bead or 51 A/bead (3.4 A/bp)
 
         lp = 530 # persistence length in A
-        l = 51   # separation distance between beads
+        l = 2**(1./6.)*46   # separation distance between beads
 
         longDNA = sasmol.SasMol(0)
         L = n_lp*lp
         N = int(L/l)
         natoms = N+1
+        print 'natoms = ',natoms
         longDNA._L = L
         longDNA._natoms = natoms
 
@@ -513,38 +548,100 @@ def makeLongDNA(n_lp):
         # print longCoor[-5:]
 
         longDNA.setCoor(longCoor)
+        longDNA.setElement(['C']*natoms)
 
         vecXYZ = np.zeros((natoms*3,3))
         vecXYZ[0:natoms] = [1,0,0]
         vecXYZ[natoms:2*natoms] = [0,1,0]
         vecXYZ[2*natoms:3*natoms] = [0,0,1]
-        # (u, l) = checkU(cg_dna.coor()[0]) # u: vectors between beads, l: average distance
         # n = L/l                         # number of times need to repeat the grain
         # print '(l, L, n)', (l, L, n) 
 
         return (longDNA, vecXYZ)
 
+def mag(vec):
+    import numpy as np
+
+    (r,) = vec.shape
+    sumSquares = 0.0
+    for i in xrange(r):
+        sumSquares += vec[i]**2
+    
+    return np.sqrt(sumSquares)
+
+
 if __name__ == "__main__":
 
-        #        print '\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n'
+        # ----- Modify these ---
+        iters = 1
+        nsteps = 1
+        theta_max = np.float(2)
+        Llp = 1    # L/lp
+        nSoft = 2
+        show = 0
+        # ----- Modify these ---
 
-        nsteps = 10
-        lp = .530          # persistence length (actual lp=530A)
-        w = 4.6        # width of dsDNA (actual between 22 & 26) should be < l
-        Llp = 100;     # L/lp
-        L = Llp*lp;
+        lp = 530      # persistence length  (lp = 530A)
+        w = 46        # width of chain in A (w = 46A)l
+        L = Llp*lp  #
         # all_atom_pdb = 'trimer_stacked.pdb'
 
         #s all_atom_pdb = 'dna.pdb'
         #s (cg_dna, vecXYZ) = make_model(all_atom_pdb, 1, 2, range(12), range(12))
         #s print cg_dna.coor()[0]
 
-        (cg_dna, vecXYZ) = makeLongDNA(10)
+        (cg_dna, vecXYZ) = makeLongDNA(Llp)
 
-        cg_dna = dna_mc(nsteps,cg_dna,vecXYZ,lp,w)
-#        cg_dna.calcrg(0)
-#        print cg_dna.rg()
+        rg_lp = np.zeros(iters)
+        re_lp = np.zeros(iters)
+        fig = plt.figure()
+        # ax = fig.add_subplot(iters, 1, 1, projection='3d')
+        rg0 = cg_dna.calcrg(0)/lp
+        re0 = mag(cg_dna.coor()[0,-1]-cg_dna.coor()[0,0])/lp
+
+        if show:
+                ax = Axes3D(fig)
+                ax.scatter(cg_dna.coor()[0,:,0],cg_dna.coor()[0,:,1],cg_dna.coor()[0,:,2])
+                ax.set_xlabel('X')
+                ax.set_ylabel('Y')
+                ax.set_zlabel('Z')
+                fig.suptitle('After %d steps Rg/lp=%f  Re/lp=%f' %(0, rg0, re0))
+                plt.show()
+
+        print 'iter:', 0,'of',iters,' (a, r) = (  , )   rg/lp=',rg0, 're/lp=',re0
+
+        import time
+        timestr = time.strftime("%y%m%d")
+        fName = timestr + '_%dlp_dnaMoves.o' %Llp
+        outData = open(fName,'a')
+        #iteratons rg/lp a
+        outData.write("# L=%d\t iters=%d\t nsteps=%d\t nSoft=%d\t theta_max=%f \n# moves\t rg/lp\t\t re/lp\t\t a\t r\n" %(Llp,iters,nsteps, nSoft, theta_max))
+        outData.close()
         
+        for i in xrange(iters):
+                (cg_dna,vecXYZ, a, r) = dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft)
+                rg_lp[i] = cg_dna.calcrg(0)/lp
+                re_lp[i] = mag(cg_dna.coor()[0,-1]-cg_dna.coor()[0,0])/lp
+                print 'iter:', i+1,'of',iters,' (a, r) = ',(a,r), 'rg_lp=',rg_lp[i], 're_lp=',re_lp[i]
+
+                #output
+                outData = open(fName,'a')
+                outData.write("%d\t%f\t%f\t%d\t%r\n" %((i+1)*nsteps, rg_lp[i], re_lp[i], a, r) )
+                outData.close()
+                if show:
+                        fig = pylab.figure()
+                        ax = Axes3D(fig)
+                        ax.scatter(cg_dna.coor()[0,:,0],cg_dna.coor()[0,:,1],cg_dna.coor()[0,:,2])
+                        ax.set_xlabel('X')
+                        ax.set_ylabel('Y')
+                        ax.set_zlabel('Z')
+                        fig.suptitle('After %d steps Rg/lp=%f  Re/lp=%f' %((i+1)*nsteps, rg_lp[i], re_lp[i]))
+        #s figure()
+        #s x = range(iters)
+        #s plot(x,rg)
+        #s xlabel('iteration #')
+        #s ylabel('Rg')
+
         #test = np.eye(4)
         #s est = np.zeros((10,4))
         #s est[:,1] = range(10)
@@ -570,11 +667,15 @@ if __name__ == "__main__":
         #s 
         #s rint test
 
+def closeAll():
+        for x in xrange(100):
+                plt.close()
+
 '''
 to do: 
 reproduce one of the figures from D. Tree's paper (to verify the model is programmed the way they did)
 if the model is fine and good for the length scale of interest then go to the mapping
-plotting the energies 
+plotting the energies 9
 
 
 sassie: mixed monte carlo -> molecular
