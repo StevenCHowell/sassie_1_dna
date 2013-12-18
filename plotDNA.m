@@ -1,3 +1,4 @@
+% $Id: plotDNA.m,v 1.2 2013-12-18 14:53:00 schowell Exp $
 % script to plot the results of calculating the Re and Rg of DNA
 %
 % data columns: moves  rg/lp      re/lp           a       r
