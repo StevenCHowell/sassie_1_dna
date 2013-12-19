@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# $Id: cgDNA_move.py,v 1.11 2013-12-18 14:51:16 schowell Exp $
+# $Id: cgDNA_move.py,v 1.12 2013-12-19 16:26:15 schowell Exp $
 import sassie.sasmol.sasmol as sasmol
 import numpy as np,string,os,locale,sys,random, pylab
 import matplotlib.pyplot as plt
@@ -399,51 +399,58 @@ def energyBend(lpl,u,l):
 
         return res*lpl
 
-def energyWCA(w,coor,WCA,trial_bead):
+def energyWCA(w,coor,wca0,trial_bead):
         '''
         this function finds the Weeks-Chandler-Anderson repulsion E/kt for N
         beads connected by N-1 rods together representing a worm-like chain.
         w is the effective width of the chain
         coor contains the xyz-coordinates of the beads
         '''
-        
+        wca1 = np.copy(wca0)
         test = 2.**(1./6.)*w
         (N, col) = coor.shape
-        res = 0.0
         for i in xrange(trial_bead,N):
                 ri = coor[i,:]
                 for j in xrange(0,i):
-                        print '(i,j) ',(i,j)
                         rj = coor[j,:]
                         rij = np.sqrt((ri[0]-rj[0])**2. + (ri[1]-rj[1])**2. + (ri[2]-rj[2])**2.)
-                        print '(2^(1/6)*w, rij) = ', (test, rij)
+                        #s print '(2^(1/6)*w, rij) = ', (test, rij)
                         if rij < test:
-                                # print WCA.shape
-                                WCA[i,j] = (w/rij)**12.-(w/rij)**6.+0.25
-                                print WCA
-        res = 4*np.sum(WCA)
+                                wca1[i,j] = (w/rij)**12.-(w/rij)**6.+0.25
+        res = 4*np.sum(wca1)
         #s print 'U_wca =', res*4
-        return (res, WCA)
+        return (res, wca1)
+
+def FenergyWCA(w,coor,wca0,trial_bead):
+        '''
+        this function finds the Weeks-Chandler-Anderson repulsion E/kt for N
+        beads connected by N-1 rods together representing a worm-like chain.
+        w is the effective width of the chain
+        coor contains the xyz-coordinates of the beads
+        and does all this using FORTRAN
+        '''
+        import sys ; sys.path.append('./')
+        import electrostatics
+
+        wca1 = np.copy(wca0)
+        test = 2.**(1./6.)*w
+        (N, col) = coor.shape
+
+        print 'before\n',wca1
+        wca1 = electrostatics.calcwca(coor,trial_bead+1,w,wca1)  
+        #  increment trial bead by one because it will index from 1 instead of 0
+        print 'after\n',wca1
+        res = 4.*np.sum(wca1)
+        #s print 'U_wca =', res*4
+        return (res, wca1)
+
 # rewrite this using sassie -> simulate -> energy -> extensions -> non_bonding
 
 def dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft=3):
         '''
         this function perform nsteps Monte-Carlo moves on the cg_dna
         '''
-
         dcdOutFile = cg_dna.open_dcd_write("cg_dna_moves.dcd")        
-        import time
-        timestr = time.strftime("%y%m%d")
-        fName = timestr + 'dnaMoves.o'
-        #s print '\n' + fName + ' contains result paramaters'
-        #s if os.path.exists(fName):
-        #s         header = ''
-        #s else:
-        # (dU, Ub1-Ub0, Uwca1-Uwca0, p, test, w, lp, trial_bead, thetaX, thetaY)
-
-        #s header = '# dU\t\t dU_b\t\t dU_WCA\t\t prob\t random\t w\t lp\t bead\t thetaX\t thetaY\n'
-        #s outData = open(fName,'a')
-        #s outData.write(header)
 
         nbeads = cg_dna.natoms()  # need to change this so there could be components that are not the beads
         coor = np.copy(cg_dna.coor()[0])
@@ -493,7 +500,7 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft=3):
                 # calculate the change in energy (dU) and boltzman factor (p) for the new model
                 (u, l) = checkU(coor)
                 Ub1 = energyBend(lpl,u,l)
-                (Uwca1,wca1) = energyWCA(w,coor,wca0,trial_bead)
+                (Uwca1,wca1) = FenergyWCA(w,coor,wca0,trial_bead)
                 U_T1 =  Ub1 + Uwca1
                 dU = U_T1 - U_T0
                 p = np.exp(-dU)
@@ -509,6 +516,7 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft=3):
                         #print 'wrote new dcd frame (end of loop',i,' trial_bead=',trial_bead,')'+' accepted new configuration'
                         a += 1
                         cg_dna.coor()[0] = np.copy(coor)
+                        wca0 = np.copy(wca1)
                         U_T0 = U_T1
                 else :
                         #print 'wrote new dcd frame (end of loop',i,' trial_bead=',trial_bead,')'+' rejected new configuration'
@@ -526,9 +534,6 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft=3):
 def makeLongDNA(n_lp):
         print 'making DNA that is %d*lp long' %n_lp
 
-        #? how do I populate the elements necessary for a DNA pdb?
-        #? for a sasmol object?
-        
         # 15 bp/bead or 51 A/bead (3.4 A/bp)
 
         lp = 530 # persistence length in A
@@ -572,11 +577,12 @@ def mag(vec):
 
 if __name__ == "__main__":
 
+        import time
         # ----- Modify these ---
         iters = 1
         nsteps = 1
-        theta_max = np.float(2)
-        Llp = 1    # L/lp
+        theta_max = np.float(90)
+        Llp = 2    # L/lp
         nSoft = 2
         show = 0
         # ----- Modify these ---
@@ -584,11 +590,6 @@ if __name__ == "__main__":
         lp = 530      # persistence length  (lp = 530A)
         w = 46        # width of chain in A (w = 46A)l
         L = Llp*lp  #
-        # all_atom_pdb = 'trimer_stacked.pdb'
-
-        #s all_atom_pdb = 'dna.pdb'
-        #s (cg_dna, vecXYZ) = make_model(all_atom_pdb, 1, 2, range(12), range(12))
-        #s print cg_dna.coor()[0]
 
         (cg_dna, vecXYZ) = makeLongDNA(Llp)
 
@@ -610,8 +611,7 @@ if __name__ == "__main__":
 
         print 'iter:', 0,'of',iters,' (a, r) = (  , )   rg/lp=',rg0, 're/lp=',re0
 
-        import time
-        timestr = time.strftime("%y%m%d")
+        timestr = time.strftime("%y%m%d_%H%M%S")
         fName = timestr + '_%dlp_dnaMoves.o' %Llp
         outData = open(fName,'a')
         #iteratons rg/lp a
@@ -622,7 +622,7 @@ if __name__ == "__main__":
                 (cg_dna,vecXYZ, a, r) = dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft)
                 rg_lp[i] = cg_dna.calcrg(0)/lp
                 re_lp[i] = mag(cg_dna.coor()[0,-1]-cg_dna.coor()[0,0])/lp
-                print 'iter:', i+1,'of',iters,' (a, r) = ',(a,r), 'rg_lp=',rg_lp[i], 're_lp=',re_lp[i]
+                print 'iter:', i+1,'of',iters,' (a, r) = ',(a,r), 'rg/lp=',rg_lp[i], 're/lp=',re_lp[i]
 
                 #output
                 outData = open(fName,'a')
@@ -636,6 +636,26 @@ if __name__ == "__main__":
                         ax.set_ylabel('Y')
                         ax.set_zlabel('Z')
                         fig.suptitle('After %d steps Rg/lp=%f  Re/lp=%f' %((i+1)*nsteps, rg_lp[i], re_lp[i]))
+
+def closeAll():
+        for x in xrange(100):
+                plt.close()
+
+'''
+to do: 
+reproduce one of the figures from D. Tree's paper (to verify the model is programmed the way they did)
+if the model is fine and good for the length scale of interest then go to the mapping
+plotting the energies 9
+
+
+sassie: mixed monte carlo -> molecular
+'''
+        # all_atom_pdb = 'trimer_stacked.pdb'
+
+        #s all_atom_pdb = 'dna.pdb'
+        #s (cg_dna, vecXYZ) = make_model(all_atom_pdb, 1, 2, range(12), range(12))
+        #s print cg_dna.coor()[0]
+
         #s figure()
         #s x = range(iters)
         #s plot(x,rg)
@@ -666,17 +686,3 @@ if __name__ == "__main__":
         #s        print 'back2original:\n', test[i:]
         #s 
         #s rint test
-
-def closeAll():
-        for x in xrange(100):
-                plt.close()
-
-'''
-to do: 
-reproduce one of the figures from D. Tree's paper (to verify the model is programmed the way they did)
-if the model is fine and good for the length scale of interest then go to the mapping
-plotting the energies 9
-
-
-sassie: mixed monte carlo -> molecular
-'''
