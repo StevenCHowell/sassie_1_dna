@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# $Id: cgDNA_move.py,v 1.12 2013-12-19 16:26:15 schowell Exp $
+# $Id: cgDNA_move.py,v 1.13 2013-12-19 16:43:54 schowell Exp $
 import sassie.sasmol.sasmol as sasmol
 import numpy as np,string,os,locale,sys,random, pylab
 import matplotlib.pyplot as plt
@@ -436,17 +436,14 @@ def FenergyWCA(w,coor,wca0,trial_bead):
         test = 2.**(1./6.)*w
         (N, col) = coor.shape
 
-        print 'before\n',wca1
         wca1 = electrostatics.calcwca(coor,trial_bead+1,w,wca1)  
         #  increment trial bead by one because it will index from 1 instead of 0
-        print 'after\n',wca1
+
         res = 4.*np.sum(wca1)
         #s print 'U_wca =', res*4
         return (res, wca1)
 
-# rewrite this using sassie -> simulate -> energy -> extensions -> non_bonding
-
-def dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft=3):
+def dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft=3,f=1):
         '''
         this function perform nsteps Monte-Carlo moves on the cg_dna
         '''
@@ -462,7 +459,11 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft=3):
         # calculate the energy of the starting positions
         wca0 = np.zeros((nbeads,nbeads))
         Ub0 = energyBend(lpl,u,l)
-        (Uwca0, wca0) = energyWCA(w,coor,wca0,0)
+        if f:
+                (Uwca0, wca0) = FenergyWCA(w,coor,wca0,0)
+        else:
+                (Uwca0, wca0) = energyWCA(w,coor,wca0,0)
+
         U_T0 = Ub0 + Uwca0
         wca1 = np.copy(wca0)
 
@@ -500,7 +501,11 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft=3):
                 # calculate the change in energy (dU) and boltzman factor (p) for the new model
                 (u, l) = checkU(coor)
                 Ub1 = energyBend(lpl,u,l)
-                (Uwca1,wca1) = FenergyWCA(w,coor,wca0,trial_bead)
+                if f:
+                        (Uwca1,wca1) = FenergyWCA(w,coor,wca0,trial_bead)
+                else: 
+                        (Uwca1,wca1) = energyWCA(w,coor,wca0,trial_bead)
+
                 U_T1 =  Ub1 + Uwca1
                 dU = U_T1 - U_T0
                 p = np.exp(-dU)
@@ -578,13 +583,15 @@ def mag(vec):
 if __name__ == "__main__":
 
         import time
+
         # ----- Modify these ---
-        iters = 1
-        nsteps = 1
+        iters = 1000
+        nsteps = 1000
         theta_max = np.float(90)
         Llp = 2    # L/lp
         nSoft = 2
         show = 0
+        f = 1
         # ----- Modify these ---
 
         lp = 530      # persistence length  (lp = 530A)
@@ -618,8 +625,9 @@ if __name__ == "__main__":
         outData.write("# L=%d\t iters=%d\t nsteps=%d\t nSoft=%d\t theta_max=%f \n# moves\t rg/lp\t\t re/lp\t\t a\t r\n" %(Llp,iters,nsteps, nSoft, theta_max))
         outData.close()
         
+        tic = time.time()
         for i in xrange(iters):
-                (cg_dna,vecXYZ, a, r) = dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft)
+                (cg_dna,vecXYZ, a, r) = dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft,f)
                 rg_lp[i] = cg_dna.calcrg(0)/lp
                 re_lp[i] = mag(cg_dna.coor()[0,-1]-cg_dna.coor()[0,0])/lp
                 print 'iter:', i+1,'of',iters,' (a, r) = ',(a,r), 'rg/lp=',rg_lp[i], 're/lp=',re_lp[i]
@@ -636,6 +644,9 @@ if __name__ == "__main__":
                         ax.set_ylabel('Y')
                         ax.set_zlabel('Z')
                         fig.suptitle('After %d steps Rg/lp=%f  Re/lp=%f' %((i+1)*nsteps, rg_lp[i], re_lp[i]))
+        
+        toc = time.time() - tic
+        print 'run time =',toc,'seconds'
 
 def closeAll():
         for x in xrange(100):

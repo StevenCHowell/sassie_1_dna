@@ -1,4 +1,4 @@
-C $Id: electrostatics.f,v 1.1 2013-12-19 16:26:15 schowell Exp $
+C $Id: electrostatics.f,v 1.2 2013-12-19 16:43:54 schowell Exp $
 C         1         2         3         4         5         6         7
 C123456789012345678901234567890123456789012345678901234567890123456789012
 
@@ -13,8 +13,6 @@ cf2py intent(in) :: coor,natoms,tbead,w,wca
 cf2py intent(in,out):: wca
 cf2py intent(hide):: i,j,cutoff,rij
 cf2py intent(hide):: x2,y2,z2,dx2,dy2,dz2,rij
-        write(*,*) 'test'
-        write(*,*) 'in fortran: natoms = ',natoms
 
 C    to call this from python:
 C
