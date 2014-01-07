@@ -1,9 +1,14 @@
 #!/usr/bin/python
-# $Id: cgDNA_move.py,v 1.13 2013-12-19 16:43:54 schowell Exp $
+# $Id: cgDNA_move.py,v 1.14 2014-01-07 15:19:01 schowell Exp $
+# time using FORTRAN double loop, N=1000, iters=1000 (so 1*10^6 steps): 958.887075186 seconds
+# time using python double loop, N=1000, iters=1000 (so 1*10^6 steps): 
+
 import sassie.sasmol.sasmol as sasmol
-import numpy as np,string,os,locale,sys,random, pylab
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+import numpy as np,string,os,locale,sys,random
+# import pylab
+# import matplotlib.pyplot as plt
+# from mpl_toolkits.mplot3d import Axes3D
+
 
 def write_xyz(filename,coor,comment,frame):
 
@@ -188,51 +193,39 @@ def move2origin(coor4):
         return (T, Ti)
 
 def align2z(coor4):
-        Axz  = np.eye(4,dtype=np.float)
-        Az   = np.eye(4,dtype=np.float)
+        '''
+        function designed to align the axis connecting the first 2 coordinates of an array 
+        of (1,4) coodinate vectors to the z-axis
+        '''
+        A = np.eye(4,dtype=np.float)
+        #s Axz  = np.eye(4,dtype=np.float)
+        #s Az   = np.eye(4,dtype=np.float)
         assert all(coor4[0] == [0., 0., 0., 1.,]), "coordinates passed to align2z were not translated to the origin"
 
         if coor4.shape > (1, 4):
-                small = 1E-14 # small limit to make sure not dividing by zero
-                
-                # (u, v, w) pointing from bead0 to bead1
                 (u, v, w) = coor4[1,0:3]
-                #s print '(u, v, w) = ', (u,v,w)
-                
-                # align to the x-z plane
-                d1 = np.sqrt(u**2+v**2)
-                if v > small:
-                        # print '(u, v, d1) =', (u, v, d1)
-                        (Axz[0][0], Axz[0][1]) = (u/d1, -v/d1)
-                        (Axz[1][0], Axz[1][1]) = (v/d1,  u/d1)  
-                        # print 'Axz= \n', Axz
-                #else:
-                        #s print 'v < ', small
-                        # print 'already aligned to xz-plane'
+                small = 1E-14 # small limit to make sure not dividing by zero
 
-                        # align to the z-axis
+                d1 = np.sqrt(u**2+v**2)
                 d2 = np.sqrt(u**2+v**2+w**2)
                 if d1 > small:
-                        (Az[0][0], Az[0][2]) = (w/d2,  d1/d2)
-                        (Az[2][0], Az[2][2]) = (-d1/d2, w/d2)
-                        # print 'Az= \n', Az
-                #else:
-                        # print 'already aligned to z-axis'                        
+                        (A[0][0], A[0][1], A[0][2]) = (u/d1*w/d2, -v/d1, u/d2)
+                        (A[1][0], A[1][1], A[1][2]) = (v/d1*w/d2, u/d1, v/d2)
+                        (A[2][0], A[2][1], A[2][2]) = (-d1/d2, 0, w/d2)   #; print 'A1:\n',A
+
+                #s # align to the x-z plane
+                #s if v > small:           # check if already aligned to xz-plane
+                #s         (Axz[0][0], Axz[0][1]) = (u/d1, -v/d1)
+                #s         (Axz[1][0], Axz[1][1]) = (v/d1,  u/d1)  #; print 'Axz= \n', Axz
+                #s 
+                #s # align to the z-axis
+                #s if d1 > small:
+                #s         (Az[0][0], Az[0][2]) = (w/d2,  d1/d2)
+                #s         (Az[2][0], Az[2][2]) = (-d1/d2, w/d2)  #; print 'Az= \n', Az
         else:
                 print 'no point to align'
-
-        A = np.dot(Axz,Az)
-        Ai = np.dot(Az.transpose(),Axz.transpose())
-        # print 'coor passed to A, Ai:\n',coor4
-        #s print '[coor] x [Axz]:\n',np.dot(coor4,Axz)
-        # print 'AxzI test:\n',np.dot(np.dot(coor4,Axz),Axz.transpose())
-        #s print "Axz = \n", Axz
-        #s print "Az = \n", Az
-        #s print "these 3 should be identities:"
-        #s print np.dot(Az,Az.transpose())
-        #s print np.dot(Axz,Axz.transpose())
-        #s print np.dot(A,Ai)
-        return (A, Ai)
+        #s A = np.dot(Axz,Az) #;   print 'A3=\n',A
+        return A
         
 
 def beadRotate(coor3,vecX,vecY,vecZ,thetas,nSoft):
@@ -253,19 +246,18 @@ def beadRotate(coor3,vecX,vecY,vecZ,thetas,nSoft):
         # make sure the number of cg beads and orientation vectors match (this will not include any rigid components)
         assert (natoms,col) == vecX.shape == vecY.shape == vecZ.shape, "different number of bead origins and orientations"
 
+        # initialize vector arrays for coordinates and orientation vectors
         coor4 = np.ones((natoms,4),np.float)
         X = np.copy(coor4)
         Y = np.copy(coor4)
         Z = np.copy(coor4)
-        coor4[:,0:3] = coor3
+        coor4[:,0:3] = coor3     #; print 'coor4 = ',coor4
         X[:,0:3] = vecX
         Y[:,0:3] = vecY
         Z[:,0:3] = vecZ
-        # print 'coor4 = ',coor4
 
         # create the translation-rotation matrix
-        # This is intended to be multiplied from the right (unlike standard matrix multiplication)
-        # so as not to require transing the coordinate vectors.
+        # This is intended to be multiplied from the right (unlike standard matrix multiplication) so as not to require transposing the coordinate vectors.
         # print '(tx, ty, tz) in degrees:', thetas
         tx = thetas[0]*(np.pi/180.0)
         ty = thetas[1]*(np.pi/180.0)
@@ -279,35 +271,36 @@ def beadRotate(coor3,vecX,vecY,vecZ,thetas,nSoft):
         sz = np.sin(tz)
         
         # initialize the transformation pieces
-        Rx   = np.eye(4,dtype=np.float)
-        Ry   = np.eye(4,dtype=np.float)
-        Rz   = np.eye(4,dtype=np.float)
-
-        (Rx[1][1], Rx[1][2]) = ( cx, sx)
-        (Rx[2][1], Rx[2][2]) = (-sx, cx)  
-
-        (Ry[0][0], Ry[0][2]) = (cy, -sy)
-        (Ry[2][0], Ry[2][2]) = (sy,  cy)
-
-        (Rz[0][0], Rz[0][1]) = ( cz, sz)
-        (Rz[1][0], Rz[1][1]) = (-sz, cz)  
-        # print 'Rx:\n', Rx
-        # print 'Ry:\n', Ry
-        # print 'Rz:\n', Rz
+        # consolidated method of defining the rotation matrices
+        R = np.eye(4,dtype=np.float)
+        (R[0][0], R[0][1], R[0][2]) = ( cy*cz, cy*sz, -sy )
+        (R[1][0], R[1][1], R[1][2]) = ( sx*sy*cz-cx*sz, sx*sy*sz+cx*cz, sx*cy )
+        (R[2][0], R[2][1], R[2][2]) = ( sx*sz+cx*sy*cz, cx*sy*sz-sx*cz, cx*cy )  #; print 'R:\n', R
+        
+        # verbose method of defining the rotation matrices (slower)
+        #s Rx = np.eye(4,dtype=np.float)
+        #s Ry = np.eye(4,dtype=np.float)
+        #s Rz = np.eye(4,dtype=np.float)
+        #s 
+        #s (Rx[1][1], Rx[1][2]) = ( cx, sx)
+        #s (Rx[2][1], Rx[2][2]) = (-sx, cx)  #; print 'Rx:\n', Rx
+        #s 
+        #s (Ry[0][0], Ry[0][2]) = (cy, -sy)
+        #s (Ry[2][0], Ry[2][2]) = (sy,  cy)  #; print 'Ry:\n', Ry
+        #s 
+        #s (Rz[0][0], Rz[0][1]) = ( cz, sz)
+        #s (Rz[1][0], Rz[1][1]) = (-sz, cz)  #; print 'Rz:\n', Rz
+        #s 
+        #s R = np.dot(np.dot(Rx, Ry), Rz) #; print "Rxyz = \n", Rxyz
 
         # print 'original coor:\n', coor4
         (T0, Ti0) = move2origin(coor4)
-        coor4 = np.dot(coor4,T0)  # move to origin
-        # print 'moved2origin coor:\n', coor4
+        coor4 = np.dot(coor4,T0)  #; print 'moved to origin coor:\n', coor4
                 
-        (A, Ai) = align2z(coor4)
-        coor4 = np.dot(coor4,A) # align to z-axis 
-        # print 'aligned coor:\n', coor4
+        A = align2z(coor4)
 
-        Rxyz = np.dot(np.dot(Rx, Ry), Rz)
-        #s print "Rxyz = \n", Rxyz
-        coor4 = np.dot(coor4,Rxyz) # rotate about first angle
-        # print 'step 0 rotated coor:\n', coor4
+        coor4 = np.dot(coor4,A)         #; print 'aligned coor to z-axis:\n', coor4
+        coor4 = np.dot(coor4,R) #; print 'step 0 rotated about first angle coor:\n', coor4
 
         # repeat rotation for softening the bend
         for i in xrange(1,nSoft):
@@ -315,17 +308,17 @@ def beadRotate(coor3,vecX,vecY,vecZ,thetas,nSoft):
                 coor4[i:] = np.dot(coor4[i:],T)  # move to origin
                 # print 'moved2origin coor:\n',coor4
 
-                coor4[i:] = np.dot(coor4[i:],Rxyz)
+                coor4[i:] = np.dot(coor4[i:],R)
                 # print 'step %d' %i,'rotated coor:\n',coor4
 
                 coor4[i:] = np.dot(coor4[i:],Ti) # return to original position
                 # print 'returned from origin coor:\n',coor4
                 # the coarse grained beads local coordinates should not be translated, only rotated
-                X[i:] = np.dot(X[i:],Rxyz)
-                Y[i:] = np.dot(Y[i:],Rxyz)
-                Z[i:] = np.dot(Z[i:],Rxyz)
+                X[i:] = np.dot(X[i:],R)
+                Y[i:] = np.dot(Y[i:],R)
+                Z[i:] = np.dot(Z[i:],R)
 
-        coor4 = np.dot(coor4,Ai)
+        coor4 = np.dot(coor4,A.transpose())
         # print 'un-aligned:\n',coor4
         coor4 = np.dot(coor4,Ti0)
         # print 'returned from origin coor:\n',coor4
@@ -389,12 +382,12 @@ def energyBend(lpl,u,l):
         '''
 
         (nu,col) = u.shape          # nu = nbeads - 1
-        uk0 = u[:nu-1,:]/l            # define u_k
-        uk1 = u[1:,:]/l               # define u_k+1
-        checkMag(u)
-        #s print 'uk0:\n',uk0
-        #s print 'uk1:\n',uk1
+        uk0 = u[:nu-1,:]/l          #; print 'u_k= \n',uk0
+        uk1 = u[1:,:]/l             #; print 'u_k= \n',uk1
         #s print 'uk0*uk1\n:',uk0*uk1
+
+        # checkMag(u)       # for debugging
+
         res = (nu-1) - np.sum(uk0*uk1)  # calculate the sum of their products
 
         return res*lpl
@@ -585,10 +578,10 @@ if __name__ == "__main__":
         import time
 
         # ----- Modify these ---
-        iters = 1000
-        nsteps = 1000
+        iters = 2000
+        nsteps = 100000
         theta_max = np.float(90)
-        Llp = 2    # L/lp
+        Llp = 15    # L/lp
         nSoft = 2
         show = 0
         f = 1
@@ -602,12 +595,12 @@ if __name__ == "__main__":
 
         rg_lp = np.zeros(iters)
         re_lp = np.zeros(iters)
-        fig = plt.figure()
-        # ax = fig.add_subplot(iters, 1, 1, projection='3d')
         rg0 = cg_dna.calcrg(0)/lp
         re0 = mag(cg_dna.coor()[0,-1]-cg_dna.coor()[0,0])/lp
 
         if show:
+                fig = plt.figure()
+                # ax = fig.add_subplot(iters, 1, 1, projection='3d')
                 ax = Axes3D(fig)
                 ax.scatter(cg_dna.coor()[0,:,0],cg_dna.coor()[0,:,1],cg_dna.coor()[0,:,2])
                 ax.set_xlabel('X')
