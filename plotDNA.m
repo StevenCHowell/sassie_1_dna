@@ -1,4 +1,4 @@
-% $Id: plotDNA.m,v 1.4 2014-01-07 15:19:01 schowell Exp $
+% $Id: plotDNA.m,v 1.5 2014-01-10 17:36:29 schowell Exp $
 % script to plot the results of calculating the Re and Rg of DNA
 %
 % data columns: moves  rg/lp      re/lp           a       r
@@ -88,7 +88,7 @@ for i = 1:length(d.name)
     xyplot(d.(d.name{i}).mav,'.','linewidth',2)
     title(['Rg of ',d.name{i},'  (a=',num2str(d.(d.name{i}).accep),')']);
     xlabel('iterations')
-    ylabel('Rg/lp')
+    ylabel('Rg/Lp')
 end
 legend('Rg','actual Rg','Moving Av','location','NorthEastOutside')
 legend boxoff
@@ -99,16 +99,16 @@ hold all;
 % x=logspace(log(xVal(1))/log(10),log(xVal(2))/log(10));
 % plot(x,spline(rg(:,1),rg(:,2),x));
 % xyplot(rg)
+xyplot(rg)
 xyplot(re)
 xyerror(expRg,'o')
 xyerror(expRe,'s')
-legend('theoretical Rg/lp','theoretical Re/lp','computed Rg/lp','competed Re/lp','location','southeast')
+legend('theoretical Rg/Lp','theoretical Re/Lp','computed Rg/Lp','computed Re/Lp','location','southeast')
 legend boxoff
 logxy
-xlabel('L/lp')
+xlabel('L/Lp')
 ylabel('size of chain')
 title('Validation of DNA bulk properties')
 axis tight
 zoomout(.1)
 saveps(gcf,'validateModel')
-plot(llp,Rg)

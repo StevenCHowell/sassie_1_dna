@@ -1,14 +1,10 @@
 #!/usr/bin/python
-# $Id: cgDNA_move.py,v 1.14 2014-01-07 15:19:01 schowell Exp $
+# $Id: cgDNA_move.py,v 1.15 2014-01-10 17:36:29 schowell Exp $
 # time using FORTRAN double loop, N=1000, iters=1000 (so 1*10^6 steps): 958.887075186 seconds
 # time using python double loop, N=1000, iters=1000 (so 1*10^6 steps): 
 
 import sassie.sasmol.sasmol as sasmol
 import numpy as np,string,os,locale,sys,random
-# import pylab
-# import matplotlib.pyplot as plt
-# from mpl_toolkits.mplot3d import Axes3D
-
 
 def write_xyz(filename,coor,comment,frame):
 
@@ -98,47 +94,70 @@ def make_bead_model(all_atom_pdb):
 
         return cg_dna
 
-def make_model(all_atom_pdb,chain1,chain2,atoms1,atoms2):
-
+def make_cgDNA_model(all_atom_pdb,chain1,chain2,resid1,resid2,bp_perBead):
+        '''
+        this function creates a cg bead model from DNA chains supplied as input
+        make_model takes specific DNA to coarse grain as input
+        '''
         aa_dna = sasmol.SasMol(0)
         aa_dna.read_pdb(all_atom_pdb)
-        natoms = aa_dna.natoms()
-
-
-
-        # print 'natoms = ',natoms
+        natoms = aa_dna.natoms() #; print 'natoms = ',natoms
 
         cg_dna = sasmol.SasMol(0)
-        # select the cg beads coordinates from the PDB
-        # !!! TODO: need to incorporate user selection of which chains and residues to use as flexible DNA then keep everything eles as rigid bodies !!!
-        basis_filter = "(resname[i] == 'ADE' or resname[i] == 'GUA') and (name[i] == 'N1' and (resid[i] < 21) and segname[i]=='DNA1')"
-        #s tetramer PDB uses different DNA labelling
-        #s basis_filter = "(resname[i] == 'DA' or resname[i] == 'DG')"# and (name[i] == 'N1' and (resid[i] < 21) and segname[i]=='DNA1')"
-        error,mask = aa_dna.get_subset_mask(basis_filter) 
 
+        # check the input
+        assert nbeads.size == resid1.size/2. == resid2.size/2. == chain1.size == chain2.size, "missing an inputvalue for coarse-graining the DNA"
+        assert resid1[:,1]-resid1[:,0] == resid2[:,1]-resid2[:,0], "number of bases in paired chains is not the same"
+        
         frame = 0
-        error = aa_dna.copy_molecule_using_mask(cg_dna,mask,frame) 
-        error,coor=aa_dna.get_coor_using_mask(frame,mask)
+        cg_coor = np.zeros(1,nbeads.sum(),3) # initialize array to store the coordinates of the beads
+        cg_vecs = np.zeros(1,nbeads.sum(),9) # initialize array to store the axis of the vectors
+        n=0
+        # select the cg beads coordinates from the PDB
+        for i in xrange(nbeads.size):
+                # make sure resid are in the correct order
+                if resid1[i,1] < resid1[i,0]:
+                        tmp = resid1[i,1]
+                        resid1[i,1] = resid1[i,0]
+                        resid1[i,0] = tmp
+                if resid2[i,1] < resid2[i,0]:
+                        tmp = resid2[i,1]
+                        resid1[i,1] = resid2[i,0]
+                        resid2[i,0] = tmp
 
+                npairs = resid1[i,1]-resid1[i,0]+1
+                bp_perBead = round(npairs/double(nbeads[i]))
+                r1a = resid1[i,0]
+                r2a = resid2[i,0]
+                bead = sasmol.SasMol(0)
+
+                for j in xrange(nbeads[i]):
+                        if j+1 == nbeads[i]:
+                                bp_perBead = npairs - bp_perBead*j
+                                
+                        r1b = r1a + bp_perBead
+                        r2b = r2a + bp_perBead
+                        
+                        basis_filter = "((resid[i] < 8 and resid[i] > 4) and (chain[i]=='"+chain1+"')) or ((resid[i] < 32 and resid[i] > 28)  and (chain[i]=='"+chain2+"'))"
+
+                        error, mask = aa_dna.get_subset_mask(basis_filter)
+                        error, coor = aa_dna.get_coor_using_mask(frame,mask)
+                        error = aa_dna.copy_molecule_using_mask(bead,mask,frame) 
+                        com = bead.calccom(frame)
+                        cg_coor[0,n,:] = com                   # store the coordinates of the com for the bead coordinate
+                        new_coor = coor - com                  # calculate the coodinates of the atoms in the bead in reference to the bead com
+                        
+                        
+                        # I'm not sure I need the pmi, I think transforming the an original xyz coordinates system centered at the cg_bead is sufficient
+                        # (uk, ak, I) = bead.calcpmi(frame)
+                        
+                        # setup for next iteration
+                        n += 1
+                        r1a = r1b+1
+                        r2a = r2b+1
+
+        # set the bead coordinates to the calculated com coordinates
         cg_dna.setCoor(coor)
-
-        diameter = 6.0*3.4
-
-        cg_natoms = cg_dna.natoms()
-        # print 'cg_natoms = ',cg_natoms
-        new_coor = np.zeros((1,cg_natoms,3),np.float)
-#        print new_coor
-
-        for i in xrange(cg_natoms):
-#                print "i = ",i
-                new_coor[0][i][2] = i*diameter
-
-        cg_dna.setCoor(new_coor)
-        # print new_coor
-        # print cg_dna.coor()
-
-#        charge = cg_dna.beta()
-#        cg_dna.setCharge(charge)
 
         #s print 'loc = ',cg_dna.loc()
         #s print 'rescode = ',cg_dna.rescode()
@@ -163,7 +182,7 @@ def make_model(all_atom_pdb,chain1,chain2,atoms1,atoms2):
 
         infile.write('END\n')
         infile.close()
-        os.remove('dum.pdb') # remove the temporary pdb file
+        os.remove('dum.pdb') # remove the temporary pdb file, not sure what its purpose was
 
         cg_dna.write_pdb("cg_test.pdb",frame,'w')
 
@@ -436,7 +455,7 @@ def FenergyWCA(w,coor,wca0,trial_bead):
         #s print 'U_wca =', res*4
         return (res, wca1)
 
-def dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft=3,f=1):
+def dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft=3,f=True):
         '''
         this function perform nsteps Monte-Carlo moves on the cg_dna
         '''
@@ -578,68 +597,85 @@ if __name__ == "__main__":
         import time
 
         # ----- Modify these ---
-        iters = 2000
-        nsteps = 100000
+        iters = 2
+        nsteps = 1000
         theta_max = np.float(90)
         Llp = 15    # L/lp
         nSoft = 2
-        show = 0
-        f = 1
+        show = True # False
+        f = True
+
+        resid1 = np.array([[6, 28],[34,56]])
+        resid2 = np.array([[93,115],[65,87]])
+        chain1 = ['A','A']
+        chain2 = ['B','B']
+        nbeads = np.array([8, 8])
         # ----- Modify these ---
 
         lp = 530      # persistence length  (lp = 530A)
         w = 46        # width of chain in A (w = 46A)l
         L = Llp*lp  #
 
-        (cg_dna, vecXYZ) = makeLongDNA(Llp)
+        #s (cg_dna, vecXYZ) = makeLongDNA(Llp) # use this to make long cgDNA
 
-        rg_lp = np.zeros(iters)
-        re_lp = np.zeros(iters)
-        rg0 = cg_dna.calcrg(0)/lp
-        re0 = mag(cg_dna.coor()[0,-1]-cg_dna.coor()[0,0])/lp
+        all_atom_pdb = 'dna.pdb'
 
-        if show:
-                fig = plt.figure()
-                # ax = fig.add_subplot(iters, 1, 1, projection='3d')
-                ax = Axes3D(fig)
-                ax.scatter(cg_dna.coor()[0,:,0],cg_dna.coor()[0,:,1],cg_dna.coor()[0,:,2])
-                ax.set_xlabel('X')
-                ax.set_ylabel('Y')
-                ax.set_zlabel('Z')
-                fig.suptitle('After %d steps Rg/lp=%f  Re/lp=%f' %(0, rg0, re0))
-                plt.show()
+        (cg_dna, vecXYZ) = make_model(all_atom_pdb, chain1, chain2, resid1, resid2, nbeads)
 
-        print 'iter:', 0,'of',iters,' (a, r) = (  , )   rg/lp=',rg0, 're/lp=',re0
-
-        timestr = time.strftime("%y%m%d_%H%M%S")
-        fName = timestr + '_%dlp_dnaMoves.o' %Llp
-        outData = open(fName,'a')
-        #iteratons rg/lp a
-        outData.write("# L=%d\t iters=%d\t nsteps=%d\t nSoft=%d\t theta_max=%f \n# moves\t rg/lp\t\t re/lp\t\t a\t r\n" %(Llp,iters,nsteps, nSoft, theta_max))
-        outData.close()
         
-        tic = time.time()
-        for i in xrange(iters):
-                (cg_dna,vecXYZ, a, r) = dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft,f)
-                rg_lp[i] = cg_dna.calcrg(0)/lp
-                re_lp[i] = mag(cg_dna.coor()[0,-1]-cg_dna.coor()[0,0])/lp
-                print 'iter:', i+1,'of',iters,' (a, r) = ',(a,r), 'rg/lp=',rg_lp[i], 're/lp=',re_lp[i]
-
-                #output
-                outData = open(fName,'a')
-                outData.write("%d\t%f\t%f\t%d\t%r\n" %((i+1)*nsteps, rg_lp[i], re_lp[i], a, r) )
-                outData.close()
-                if show:
-                        fig = pylab.figure()
-                        ax = Axes3D(fig)
-                        ax.scatter(cg_dna.coor()[0,:,0],cg_dna.coor()[0,:,1],cg_dna.coor()[0,:,2])
-                        ax.set_xlabel('X')
-                        ax.set_ylabel('Y')
-                        ax.set_zlabel('Z')
-                        fig.suptitle('After %d steps Rg/lp=%f  Re/lp=%f' %((i+1)*nsteps, rg_lp[i], re_lp[i]))
-        
-        toc = time.time() - tic
-        print 'run time =',toc,'seconds'
+##s         print cg_dna.coor()[0]
+##s 
+##s         rg_lp = np.zeros(iters)
+##s         re_lp = np.zeros(iters)
+##s         rg0 = cg_dna.calcrg(0)/lp
+##s         re0 = mag(cg_dna.coor()[0,-1]-cg_dna.coor()[0,0])/lp
+##s 
+##s         if show:
+##s                 import pylab
+##s                 import matplotlib.pyplot as plt
+##s                 from mpl_toolkits.mplot3d import Axes3D
+##s 
+##s                 fig = plt.figure()
+##s                 # ax = fig.add_subplot(iters, 1, 1, projection='3d')
+##s                 ax = Axes3D(fig)
+##s                 ax.scatter(cg_dna.coor()[0,:,0],cg_dna.coor()[0,:,1],cg_dna.coor()[0,:,2])
+##s                 ax.set_xlabel('X')
+##s                 ax.set_ylabel('Y')
+##s                 ax.set_zlabel('Z')
+##s                 fig.suptitle('After %d steps Rg/lp=%f  Re/lp=%f' %(0, rg0, re0))
+##s                 plt.show()
+##s 
+##s         print 'iter:', 0,'of',iters,' (a, r) = (  , )   rg/lp=',rg0, 're/lp=',re0
+##s 
+##s         timestr = time.strftime("%y%m%d_%H%M%S")
+##s         fName = timestr + '_%dlp_dnaMoves.o' %Llp
+##s         outData = open(fName,'a')
+##s         #iteratons rg/lp a
+##s         outData.write("# L=%d\t iters=%d\t nsteps=%d\t nSoft=%d\t theta_max=%f \n# moves\t rg/lp\t\t re/lp\t\t a\t r\n" %(Llp,iters,nsteps, nSoft, theta_max))
+##s         outData.close()
+##s         
+##s         tic = time.time()
+##s         for i in xrange(iters):
+##s                 (cg_dna,vecXYZ, a, r) = dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,nSoft,f)
+##s                 rg_lp[i] = cg_dna.calcrg(0)/lp
+##s                 re_lp[i] = mag(cg_dna.coor()[0,-1]-cg_dna.coor()[0,0])/lp
+##s                 print 'iter:', i+1,'of',iters,' (a, r) = ',(a,r), 'rg/lp=',rg_lp[i], 're/lp=',re_lp[i]
+##s 
+##s                 #output
+##s                 outData = open(fName,'a')
+##s                 outData.write("%d\t%f\t%f\t%d\t%r\n" %((i+1)*nsteps, rg_lp[i], re_lp[i], a, r) )
+##s                 outData.close()
+##s                 if show:
+##s                         fig = pylab.figure()
+##s                         ax = Axes3D(fig)
+##s                         ax.scatter(cg_dna.coor()[0,:,0],cg_dna.coor()[0,:,1],cg_dna.coor()[0,:,2])
+##s                         ax.set_xlabel('X')
+##s                         ax.set_ylabel('Y')
+##s                         ax.set_zlabel('Z')
+##s                         fig.suptitle('After %d steps Rg/lp=%f  Re/lp=%f' %((i+1)*nsteps, rg_lp[i], re_lp[i]))
+##s         
+##s         toc = time.time() - tic
+##s         print 'run time =',toc,'seconds'
 
 def closeAll():
         for x in xrange(100):
@@ -655,10 +691,6 @@ plotting the energies 9
 sassie: mixed monte carlo -> molecular
 '''
         # all_atom_pdb = 'trimer_stacked.pdb'
-
-        #s all_atom_pdb = 'dna.pdb'
-        #s (cg_dna, vecXYZ) = make_model(all_atom_pdb, 1, 2, range(12), range(12))
-        #s print cg_dna.coor()[0]
 
         #s figure()
         #s x = range(iters)
