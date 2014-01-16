@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# $Id: cgDNA_move.py,v 1.18 2014-01-16 17:53:30 schowell Exp $
+# $Id: cgDNA_move.py,v 1.19 2014-01-16 20:43:53 schowell Exp $
 # time using FORTRAN double loop, N=1000, iters=1000 (so 1*10^6 steps): 958.887075186 seconds
 # time using python double loop, N=1000, iters=1000 (so 1*10^6 steps): 
 
@@ -199,10 +199,10 @@ def make_cgDNA_model(all_atom_pdb, chain1, chain2, resid1, resid2, flexResid, bp
 
         cg_dna.write_pdb("cgDNA.pdb",frame,'w')
 
-        vecXYZ = np.zeros((nbeads,9))
-        vecXYZ[:,0:3] = [1,0,0]
-        vecXYZ[:,3:6] = [0,1,0]
-        vecXYZ[:,6:9] = [0,0,1]
+        vecXYZ = np.zeros((3,nbeads,3))
+        vecXYZ[0] = [1,0,0]
+        vecXYZ[1] = [0,1,0]
+        vecXYZ[2] = [0,0,1]
         # print "M (end of 'make_cgDNA_model')\n", M
         return (cg_dna, aa_dna, vecXYZ, allBeads, trialbeads, masks)
 
@@ -213,9 +213,9 @@ def recover_aaDNA_model(cg_dna, aa_dna, vecXYZ, allBeads, masks):
         #av = checkMag(vecXYZ) #; print 'avMag = ',av
         
         # split vecXYZ into three matrices
-        vecX = vecXYZ[:,:3]
-        vecY = vecXYZ[:,3:6]
-        vecZ = vecXYZ[:,6:]
+        vecX = vecXYZ[0]
+        vecY = vecXYZ[1]
+        vecZ = vecXYZ[2]
 
         for i in xrange(cg_natoms):
                 #s print 'allBeads[i].com (before) = \n', allBeads[i].com()
@@ -370,9 +370,9 @@ def beadRotate(coor3,vecXYZ,thetas,nSoft):
         Y = np.copy(coor4)
         Z = np.copy(coor4)
         coor4[:,0:3] = coor3     #; print 'coor4 = ',coor4
-        X[:,0:3] = np.copy(vecXYZ[:,0:3])  #;print 'X = \n', X
-        Y[:,0:3] = np.copy(vecXYZ[:,3:6])
-        Z[:,0:3] = np.copy(vecXYZ[:,6:9])
+        X[:,0:3] = np.copy(vecXYZ[0])  #;print 'X = \n', X
+        Y[:,0:3] = np.copy(vecXYZ[1])
+        Z[:,0:3] = np.copy(vecXYZ[2])
 
         # create the translation-rotation matrix
         # This is intended to be multiplied from the right (unlike standard matrix multiplication) so as not to require transposing the coordinate vectors.
@@ -444,11 +444,11 @@ def beadRotate(coor3,vecXYZ,thetas,nSoft):
         Y = np.dot(Y,A.transpose())
         Z = np.dot(Z,A.transpose())
 
-        vecXYZ[1:,0:3] = X[1:,0:3]
-        vecXYZ[1:,3:6] = Y[1:,0:3]
-        vecXYZ[1:,6:9] = Z[1:,0:3]
+        vecXYZ[0,1:] = X[1:,0:3]
+        vecXYZ[1,1:] = Y[1:,0:3]
+        vecXYZ[2,1:] = Z[1:,0:3]
 
-        return (coor4[1:,0:3], vecXYZ[1:])           # this returns the modified positions and orientations for all but the first (reference) bead
+        return (coor4[1:,0:3], vecXYZ[:,1:])           # this returns the modified positions and orientations for all but the first (reference) bead
 
 def checkU(coor):
         '''
@@ -602,7 +602,7 @@ def dna_mc(nsteps,cg_dna,vecXYZ,lp,w,theta_max,trialbeads,nSoft=3,f=True):
                 thetaXYZ = [thetaX/nSoft, thetaY/nSoft, thetaZ/nSoft]  #; print 'thetaXYZ = ', thetaXYZ
 
                 #s print 'coor before:\n',coor
-                (coor[trial_bead:],xyz[trial_bead:]) = beadRotate(coor[trial_bead-1:],xyz[trial_bead-1:],thetaXYZ,nSoft) # generate a newly rotated model
+                (coor[trial_bead:],xyz[:,trial_bead:]) = beadRotate(coor[trial_bead-1:],xyz[:,trial_bead-1:],thetaXYZ,nSoft) # generate a newly rotated model
                 #s print 'coor after\n',coor
 
                 # calculate the change in energy (dU) and boltzman factor (p) for the new model
@@ -666,10 +666,10 @@ def makeLongDNA(n_lp):
         longDNA.setCoor(longCoor)
         longDNA.setElement(['C']*natoms)
 
-        vecXYZ = np.zeros((natoms*3,3))
-        vecXYZ[0:natoms] = [1,0,0]
-        vecXYZ[natoms:2*natoms] = [0,1,0]
-        vecXYZ[2*natoms:3*natoms] = [0,0,1]
+        vecXYZ = np.zeros((3,natoms,3))
+        vecXYZ[0] = [1,0,0]
+        vecXYZ[1] = [0,1,0]
+        vecXYZ[2] = [0,0,1]
         # n = L/l                         # number of times need to repeat the grain
         # print '(l, L, n)', (l, L, n) 
 
@@ -695,22 +695,30 @@ if __name__ == "__main__":
 
         # ----- Modify these ---
         iters = 2
-        nsteps = 10
-        theta_max = np.float(90)
+        nsteps = 100
+        theta_max = np.float(5)
         Llp = 15    # L/lp
         nSoft = 2
         show = False
         #show = True
         f = True
+        bp_perBead = 2
 
-        resid1 = np.array([1, 60])
-        resid2 = np.array([120, 61])
-        #        resid2 = np.array([[93,115],[65,87]])
-        #flexid = np.array([range(6,21) + range(36,56)])
-        flexid = np.array([range(1,60)])
+        #1zbb DNA file
+        # chain1 = 'I'
+        # chain2 = 'J'
+        # all_atom_pdb = '1zbb_tetra.pdb'        
+        # resid1 = np.array([1, 60])
+        # resid2 = np.array([120, 61])
+        # flexid = np.array([range(160,200)])
+
+        #dummy dna file
         chain1 = 'A'
         chain2 = 'B'
-        bp_perBead = 10
+        all_atom_pdb = 'dna.pdb'
+        resid1 = np.array([1, 60])
+        resid2 = np.array([120, 61])
+        flexid = np.array([range(1,60)])
         # ----- Modify these ---
         
         lp = 530      # persistence length  (lp = 530A)
@@ -719,7 +727,6 @@ if __name__ == "__main__":
         
         #s (cg_dna, vecXYZ) = makeLongDNA(Llp) # use this to make long cgDNA
         
-        all_atom_pdb = 'dna.pdb'
         (cg_dna, aa_dna, vecXYZ, allBeads, trialbeads, masks) = make_cgDNA_model(all_atom_pdb, chain1, chain2, resid1, resid2, flexid, bp_perBead)
         (nbeads, c) = cg_dna.coor()[0].shape
         # print 'nbeads = ', nbeads
