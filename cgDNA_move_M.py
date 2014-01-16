@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# $Id: cgDNA_move_M.py,v 1.1 2014-01-16 17:09:48 schowell Exp $
+# $Id: cgDNA_move_M.py,v 1.2 2014-01-16 17:53:30 schowell Exp $
 # time using FORTRAN double loop, N=1000, iters=1000 (so 1*10^6 steps): 958.887075186 seconds
 # time using python double loop, N=1000, iters=1000 (so 1*10^6 steps): 
 
@@ -226,7 +226,7 @@ def recover_aaDNA_model(cg_dna, aa_dna, vecXYZ, allBeads, masks):
                 #s print 'allBeads[i].com (before) = \n', allBeads[i].com()
 
                 # R is the matrix that would align the rotated coordinates back to the original
-                R = align2xyz(vecX[i,:], vecY[i,:], vecZ[i,:])   #; print 'R = ', R
+                R = align2xyz(vecX[i,:], vecY[i,:], vecZ[i,:]) #; print 'R = ', R
                 # M will rotate cooridates from the original reference to the rotated coordinates of the bead then translate the com to the beads com
                 M = R.transpose() 
                 M[3,:3] = coor[i,:] #; print 'M = ', M  # put the translation to the new com into the matrix
@@ -260,23 +260,24 @@ def recover_aaDNA_model(cg_dna, aa_dna, vecXYZ, allBeads, masks):
         return error, aa_dna, M
 
 def align2xyz(vecX, vecY, vecZ):
+
         tmp_coor = np.zeros((2,4))
         tmp_coor[:,3] = 1
         tmp_coor[1,0:3] = vecZ
         A1 = align2z(tmp_coor)
 
-        newX = np.dot(vecX,A1[0:3,0:3]) #;# print 'newX = ', newX
+        newX = np.dot(vecX,A1[0:3,0:3]) #; print 'newX = ', newX
         #newY = np.dot(vecY,A1[0:3,0:3]) ;# print 'newY = ', newY
         assert newX[2] < 10e-5, "ERROR!!! z-component of newX is not zero and it should be"
 
-        thetaZ_x = -np.arctan2(newX[1],newX[0])  #;#  print 'thetaZ_x = ', thetaZ_x
+        thetaZ_x = -np.arctan2(newX[1],newX[0])  #;  print 'thetaZ_x = ', thetaZ_x
         #thetaZ_y = -np.arctan2(newY[1],-newY[0])  ;#  print 'thetaZ_y = ', thetaZ_y
 
         A2 = rotate4x4('z', thetaZ_x)  #; print 'A2 = ', A2
 
         A = np.dot(A1,A2)
 
-        newY = np.dot(vecY,A[0:3,0:3]) #;# print 'finalY = ', newY
+        newY = np.dot(vecY,A[0:3,0:3]) #; print 'finalY = ', newY
         assert newY[0]+newY[2] < 1+10e-5, "ERROR!!! newY is not aligned to the y-axis and it should be"
 
         return A
@@ -448,17 +449,17 @@ def beadRotate(coor3,vecXYZ,M,thetas,nSoft):
                 M[i:] = np.dot(np.dot(np.dot(M[i:],T),R),Ti)
                         
         coor4 = np.dot(coor4,A.transpose())
+        coor4 = np.dot(coor4,Ti0)        # print 'returned from origin coor:\n',coor4
         X = np.dot(X,A.transpose())
         Y = np.dot(Y,A.transpose())
         Z = np.dot(Z,A.transpose())
-        # print 'un-aligned:\n',coor4
-        coor4 = np.dot(coor4,Ti0)        # print 'returned from origin coor:\n',coor4
+
         M[:] = np.dot(np.dot(M[:],A.transpose()),Ti0) #; print "M (end of 'beadRotate)\n", M
-        # print 'vecXYZ = (after mod, before assign)\n', vecXYZ
+
         vecXYZ[1:,0:3] = X[1:,0:3]
         vecXYZ[1:,3:6] = Y[1:,0:3]
         vecXYZ[1:,6:9] = Z[1:,0:3]
-        # print 'vecXYZ = (after mod, after assign)\n', vecXYZ        
+
         return (coor4[1:,0:3], vecXYZ[1:], M[1:])           # this returns the modified positions and orientations for all but the first (reference) bead
 
 def checkU(coor):
@@ -558,7 +559,7 @@ def FenergyWCA(w,coor,wca0,trial_bead):
         coor contains the xyz-coordinates of the beads
         and does all this using FORTRAN
         '''
-        import sys ; sys.path.append('/home/schowell/Dropbox/gw_phd/code/pylib/sassie/')
+        import sys ; sys.path.append('./')  #import sys ; sys.path.append('/home/schowell/Dropbox/gw_phd/code/pylib/sassie/')
         import electrostatics
 
         wca1 = np.copy(wca0)
