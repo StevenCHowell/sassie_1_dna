@@ -1,4 +1,4 @@
-C $Id: electrostatics.f,v 1.2 2013-12-19 16:43:54 schowell Exp $
+C $Id: electrostatics.f,v 1.3 2014-03-27 16:13:25 schowell Exp $
 C         1         2         3         4         5         6         7
 C123456789012345678901234567890123456789012345678901234567890123456789012
 
@@ -19,14 +19,13 @@ C
 C    import sys ; sys.path.append('./')
 C    import electrostatics
 C
-C    elenergy = elecrostatics.fel(coor,charge,nbcutoff,nbmargin,natoms)
+C    wca = elecrostatics.calcwca(coor,natoms,tbeads,w,wca)
 C
 C
 C    to setup and incorporate into python:
 C
-C    sudo python setup_electrostatics.py build
-C    cp build/lib*/electrostatics.o (or .so) to directory that you are
-C    running in
+C    f2py -m electrostatics -c ./electrostatics.f
+
 
         cutoff = 2.**(1./6.)*w
 
