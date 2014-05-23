@@ -2,11 +2,13 @@
 # Author:  Steven C. Howell
 # Purpose: Replace DNA sequence with another sequence
 # Created: 04/24/2014
-# $Id: replaceSequence.py,v 1.1 2014-05-23 14:11:05 schowell Exp $
+# $Id: replaceSequence.py,v 1.2 2014-05-23 14:15:21 schowell Exp $
 '''
 This script loads a pdb structure file of DNA, replaces the DNA sequence,
-then saves the result as a new pdb.  It is important to check that the same
-number of residues are in the two inputs.
+then saves the result as a new pdb.  The pdb input should just be the DNA
+backbone (this can be achieved by loading a pdb into VMD, then saving just
+the backbone of the DNA into a new PDB). It is important to check that the
+same number of residues are in the two inputs.
 '''
 
 
