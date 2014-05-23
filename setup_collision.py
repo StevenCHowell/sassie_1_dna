@@ -1,4 +1,5 @@
-# $Id: setup_collision.py,v 1.1 2014-05-23 19:42:20 schowell Exp $
+#!/usr/bin/evn python
+# $Id: setup_collision.py,v 1.2 2014-05-23 20:00:27 schowell Exp $
 '''
     SASSIE  Copyright (C) 2011 Joseph E. Curtis
     This program comes with ABSOLUTELY NO WARRANTY;
