@@ -2,12 +2,12 @@
 # Author:  Steven C. Howell
 # Purpose: Prepare PDB for modeling
 # Created: 04/24/2014
-# $Id: makeHistones.py,v 1.1 2014-05-23 13:57:13 schowell Exp $
+# $Id: makeHistones.py,v 1.2 2014-05-23 14:11:05 schowell Exp $
 '''
 This script creates a separate pdb for each chain of 'aa_pdb'
 It also creates a sequence file for the residue sequence of that chain
-
 '''
+
 import sys
 import os
 import os.path as op
