@@ -1,8 +1,8 @@
 #!/usr/bin/python
-# $Id: cgDNA_move.py,v 1.24 2014-05-23 13:49:21 schowell Exp $
 # Author:   --<Steven Howell>
 # Purpose:  Provide structure movement using SASSIE protocols
 # Created: 12/01/2013
+# $Id: cgDNA_move.py,v 1.25 2014-05-23 14:09:52 schowell Exp $
 
 # time using FORTRAN double loop, N=1000, iters=1000 (so 1*10^6 steps): 958.887075186 seconds
 # time using python double loop, N=1000, iters=1000 (so 1*10^6 steps): 
