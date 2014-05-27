@@ -2,7 +2,7 @@
 # Author:   --<Steven Howell>
 # Purpose:  Provide structure movement using SASSIE protocols
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.27 2014-05-23 19:42:20 schowell Exp $
+# $Id: cgDNA_move.py,v 1.28 2014-05-27 18:03:07 schowell Exp $
 
 # time using FORTRAN double loop, N=1000, iters=1000 (so 1*10^6 steps): 958.887075186 seconds
 # time using python double loop, N=1000, iters=1000 (so 1*10^6 steps):
@@ -20,6 +20,8 @@ import logging
 import group_rotation
 import sys ; sys.path.append('./')
 #import sys ; sys.path.append('/home/schowell/Dropbox/gw_phd/code/pylib/sassie/')
+# import collision32 as collision
+#s import collision64 as collision
 import collision
 import time
 
@@ -122,6 +124,8 @@ def make_cg_model(all_atom_pdb, dna_chains, dna_resids, l, pro_groups,
     this function creates a cg bead model from DNA chains supplied as input
     make_cgDNA_model takes specific DNA to coarse grain as input
     '''
+    timestr = time.strftime("%y%m%d_%H%M%S_") # save file prefix
+
     # load in the all atom pdb
     aa_all = sasmol.SasMol(0)
     aa_all.read_pdb(all_atom_pdb)
@@ -145,7 +149,7 @@ def make_cg_model(all_atom_pdb, dna_chains, dna_resids, l, pro_groups,
     aa_dna = sasmol.SasMol(0)
     error, mask = aa_all.get_subset_mask('((moltype[i] == "dna" or moltype[i] == "rna"))')  # THIS SHOLUD NOT HAVE or rna
     error = aa_all.copy_molecule_using_mask(aa_dna, mask, frame) # pick out the dna
-    aa_dna.write_pdb("aaDNA.pdb", frame, 'w')
+    aa_dna.write_pdb(timestr + "aaDNA.pdb", frame, 'w')
     natomsD = aa_dna.natoms()
     print 'dna atoms = ', natomsD
 
@@ -252,7 +256,7 @@ def make_cg_model(all_atom_pdb, dna_chains, dna_resids, l, pro_groups,
     # print cg_dna._coor[frame, :, 0]
     cg_dna.setCoor(cg_coor)  #; print cg_dna._coor[frame, :, 0]
 
-    cg_dna.write_pdb("cgDNA.pdb", frame, 'w')
+    cg_dna.write_pdb(timestr + "cgDNA.pdb", frame, 'w')
 
     vecXYZ = np.zeros((3, nbeads, 3))
     vecXYZ[0] = [1, 0, 0]
@@ -265,7 +269,7 @@ def make_cg_model(all_atom_pdb, dna_chains, dna_resids, l, pro_groups,
     aa_pro = sasmol.SasMol(0)
     error, mask = aa_all.get_subset_mask('((moltype[i] == "protein"))')
     error = aa_all.copy_molecule_using_mask(aa_pro, mask, frame)
-    aa_pro.write_pdb("aaPro.pdb", frame, 'w')
+    aa_pro.write_pdb(timestr + "aaPro.pdb", frame, 'w')
     print 'protein atoms = ', aa_pro.natoms()
 
     # coarse-grain the proteins
@@ -273,7 +277,8 @@ def make_cg_model(all_atom_pdb, dna_chains, dna_resids, l, pro_groups,
     cg_pro = sasmol.SasMol(0)
     error, mask = aa_pro.get_subset_mask("(name[i] == 'CA')")
     error = aa_pro.copy_molecule_using_mask(cg_pro, mask, frame)
-    cg_pro.write_pdb("cgPro.pdb", frame, 'w')
+
+    cg_pro.write_pdb(timestr + "cgPro.pdb", frame, 'w')
 
     # get the masks for the move groups and each group of all atom proteins
     cg_pgroup_masks = []  # masks to separate the cg_protein into NCP groups
@@ -952,13 +957,16 @@ def test_wca(val1, val2, out=False):
 
     return ''
 
-def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads, beadgroups, group_masks, nSoft=3, f=True):
+def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads,
+           beadgroups, group_masks, nSoft=3, f=True, a=False):
     #def dna_mc(nsteps, cg_dna, vecXYZ, lp, w, theta_max, trialbeads, nSoft=3, f=True):
     '''
     this function perform nsteps Monte-Carlo moves on the cg_dna
     '''
-    dcdOutFile_d = cg_dna.open_dcd_write("cg_dna_moves.dcd")
-    dcdOutFile_p = cg_pro.open_dcd_write("cg_pro_moves.dcd")
+    timestr = time.strftime("%y%m%d_%H%M%S_")
+
+    dcdOutFile_d = cg_dna.open_dcd_write(timestr + "cg_dna_moves.dcd")
+    dcdOutFile_p = cg_pro.open_dcd_write(timestr + "cg_pro_moves.dcd")
 
     nbeads = cg_dna.natoms()
     nbeads_p = cg_pro.natoms()
@@ -1048,12 +1056,16 @@ def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads, beadgro
             U_T0 = U_T1                                # update the total energy
             cg_dna.write_dcd_step(dcdOutFile_d, 0, 0)
             cg_pro.write_dcd_step(dcdOutFile_p, 0, 0)
+
         else :
             # print 'wrote new dcd frame (end of loop', i, ' trial_bead=', trial_bead, ')'+' rejected new configuration\n'
             r += 1                                     # increment the rejected counter
             coor = np.copy(cg_dna.coor()[0])           # reset the dna coordinates
             p_coor = np.copy(cg_pro.coor()[0])         # reset the protein coordinates
             xyz = np.copy(vecXYZ)                      # reset the dna orientations
+            if a:
+                cg_dna.write_dcd_step(dcdOutFile_d, 0, 0)
+                cg_pro.write_dcd_step(dcdOutFile_p, 0, 0)
 
         # cg_dna.write_dcd_step(dcdOutFile_d, 0, 0)
         # cg_pro.write_dcd_step(dcdOutFile_p, 0, 0)
@@ -1123,22 +1135,37 @@ def parse():
         #epilog = 'no epilog found'
     )
 
-    parser.add_argument("-i", "--iters", default="100", type=int, help="number of times to repeat n-steps (program saves coordinates after each iteration)")
-    parser.add_argument("-n", "--nsteps", default="1", type=int, help="number of Monte Carlo steps in each iteration (program saves coordinates after this many steps)")
-    parser.add_argument("-s", "--show", action="store_true", help="show a plot of the configuration after each iteration")
-    parser.add_argument("-tm", "--theta_max", default="10", type=np.float, help="max rotation angle for the x and y rotation, max z rotation is theta_max/50")
-    parser.add_argument("-ns", "--nsoft", default="2", type=int, help="number of bead over which to apply any rotation (i.e. soften the bending)")
-    parser.add_argument("-bp", "--bp_perBead", default="5", type=int, help="number of bp for each coarse-grained bead")
+    parser.add_argument("-i", "--iters", default="100", type=int,
+        help="number of times to repeat n-steps (program saves coordinates after each iteration)")
+    parser.add_argument("-n", "--nsteps", default="1", type=int,
+        help="number of Monte Carlo steps in each iteration (program saves coordinates after this many steps)")
+    parser.add_argument("-s", "--show", action="store_true",
+        help="show a plot of the configuration after each iteration")
+    parser.add_argument("-tm", "--theta_max", default="10", type=np.float,
+        help="max rotation angle for the x and y rotation, max z rotation is theta_max/50")
+    parser.add_argument("-ns", "--nsoft", default="2", type=int,
+        help="number of bead over which to apply any rotation (i.e. soften the bending)")
+    parser.add_argument("-bp", "--bp_perBead", default="5", type=int,
+        help="number of bp for each coarse-grained bead")
     parser.add_argument("-c", "--cgpdb", help="coarse-grained pdb file")
 
     group1 = parser.add_mutually_exclusive_group()
-    group1.add_argument("-f", "--for_collide", action="store_true", help="use fortran module to calculate the atom overlap")
-    group1.add_argument("-py", "--py_collide", action="store_true", help="use python module to calculate the atom overlap")
+    group1.add_argument("-f", "--for_collide", action="store_true",
+        help="use fortran module to calculate the atom overlap")
+    group1.add_argument("-py", "--py_collide", action="store_true",
+        help="use python module to calculate the atom overlap")
 
     group2 = parser.add_mutually_exclusive_group()
-    group2.add_argument("-l", "--Llp", type=int, help="length of desired coarse-grain long DNA to simulate (in units of persistence lengths)")
-    group2.add_argument("-p", "--pdb", default="dna.pdb", help="all atom pdb file")
+    group2.add_argument("-l", "--Llp", type=int,
+        help="length of desired coarse-grain long DNA to simulate (in units of persistence lengths)")
+    group2.add_argument("-p", "--pdb", default="dna.pdb",
+        help="all atom pdb file")
 
+    group3 = parser.add_mutually_exclusive_group()
+    group3.add_argument("-u", "--unique", action="store_true",
+        help="only store coordinates of unique structures")
+    group3.add_argument("-a", "--all", action="store_true",
+        help="store coordinates fo all accepted structures")
     # parser.add_argument("--option", metavar='', help='')
     return parser.parse_args()
 
@@ -1161,6 +1188,12 @@ def main():
         f = True
         print 'using fortran collision calculation'
 
+    if ARGS.all:
+        a = True
+        print 'keeping all accepted structures'
+    else:
+        a = False
+        print 'only keeping unique structures'
 
     if ARGS.Llp:
         print 'simulating long DNA'
@@ -1171,6 +1204,7 @@ def main():
     elif ARGS.pdb:
         print 'loading pdb'
         all_atom_pdb = ARGS.pdb
+        dna_resids =  []
 
         if ARGS.pdb == '1zbb_tetra_half.pdb':
             dna_chains = ['I', 'J']
@@ -1185,7 +1219,7 @@ def main():
 
         elif  ARGS.pdb ==  'c11_withTails.pdb':
             '''The C11 nucleosome tetramer with all the protein tails'''
-            dna_resids = ['J', 'L']
+            dna_chains = ['J', 'L']
             dna_resids.append([1, 693])
             dna_resids.append([693, 1])
             # continuous flexible residues of DNA on first chain
@@ -1288,9 +1322,9 @@ def main():
     for i in xrange(iters):
         (cg_dna, vecXYZ, cg_pro, a, r) = dna_mc(
             nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads,
-            beadgroups, move_masks, nSoft, f)
-        print 'cg_pro.coor()[0]:\n',  cg_pro.coor()[0]
-        print 'cg_pro_orig.coor()[0]:\n',  cg_pro_orig.coor()[0]
+            beadgroups, move_masks, nSoft, f, a)
+        # print 'cg_pro.coor()[0]:\n',  cg_pro.coor()[0]
+        # print 'cg_pro_orig.coor()[0]:\n',  cg_pro_orig.coor()[0]
 
         rg_lp[i] = cg_dna.calcrg(0)/lp
         re_lp[i] = mag(cg_dna.coor()[0, -1]-cg_dna.coor()[0, 0])/lp
