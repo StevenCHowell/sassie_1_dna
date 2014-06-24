@@ -2,7 +2,7 @@
 # Author:   --<Steven Howell>
 # Purpose:  Provide structure movement using SASSIE protocols
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.28 2014-05-27 18:03:07 schowell Exp $
+# $Id: cgDNA_move.py,v 1.29 2014-06-24 15:55:11 schowell Exp $
 
 # time using FORTRAN double loop, N=1000, iters=1000 (so 1*10^6 steps): 958.887075186 seconds
 # time using python double loop, N=1000, iters=1000 (so 1*10^6 steps):
@@ -149,7 +149,7 @@ def make_cg_model(all_atom_pdb, dna_chains, dna_resids, l, pro_groups,
     aa_dna = sasmol.SasMol(0)
     error, mask = aa_all.get_subset_mask('((moltype[i] == "dna" or moltype[i] == "rna"))')  # THIS SHOLUD NOT HAVE or rna
     error = aa_all.copy_molecule_using_mask(aa_dna, mask, frame) # pick out the dna
-    aa_dna.write_pdb(timestr + "aaDNA.pdb", frame, 'w')
+    aa_dna.write_pdb("aaDNA.pdb", frame, 'w')
     natomsD = aa_dna.natoms()
     print 'dna atoms = ', natomsD
 
@@ -256,7 +256,7 @@ def make_cg_model(all_atom_pdb, dna_chains, dna_resids, l, pro_groups,
     # print cg_dna._coor[frame, :, 0]
     cg_dna.setCoor(cg_coor)  #; print cg_dna._coor[frame, :, 0]
 
-    cg_dna.write_pdb(timestr + "cgDNA.pdb", frame, 'w')
+    cg_dna.write_pdb("cgDNA.pdb", frame, 'w')
 
     vecXYZ = np.zeros((3, nbeads, 3))
     vecXYZ[0] = [1, 0, 0]
@@ -269,7 +269,7 @@ def make_cg_model(all_atom_pdb, dna_chains, dna_resids, l, pro_groups,
     aa_pro = sasmol.SasMol(0)
     error, mask = aa_all.get_subset_mask('((moltype[i] == "protein"))')
     error = aa_all.copy_molecule_using_mask(aa_pro, mask, frame)
-    aa_pro.write_pdb(timestr + "aaPro.pdb", frame, 'w')
+    aa_pro.write_pdb("aaPro.pdb", frame, 'w')
     print 'protein atoms = ', aa_pro.natoms()
 
     # coarse-grain the proteins
@@ -278,7 +278,7 @@ def make_cg_model(all_atom_pdb, dna_chains, dna_resids, l, pro_groups,
     error, mask = aa_pro.get_subset_mask("(name[i] == 'CA')")
     error = aa_pro.copy_molecule_using_mask(cg_pro, mask, frame)
 
-    cg_pro.write_pdb(timestr + "cgPro.pdb", frame, 'w')
+    cg_pro.write_pdb("cgPro.pdb", frame, 'w')
 
     # get the masks for the move groups and each group of all atom proteins
     cg_pgroup_masks = []  # masks to separate the cg_protein into NCP groups
@@ -958,15 +958,15 @@ def test_wca(val1, val2, out=False):
     return ''
 
 def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads,
-           beadgroups, group_masks, nSoft=3, f=True, a=False):
+           beadgroups, group_masks, nSoft=3, f=True, saveFalse=False):
     #def dna_mc(nsteps, cg_dna, vecXYZ, lp, w, theta_max, trialbeads, nSoft=3, f=True):
     '''
     this function perform nsteps Monte-Carlo moves on the cg_dna
     '''
     timestr = time.strftime("%y%m%d_%H%M%S_")
 
-    dcdOutFile_d = cg_dna.open_dcd_write(timestr + "cg_dna_moves.dcd")
-    dcdOutFile_p = cg_pro.open_dcd_write(timestr + "cg_pro_moves.dcd")
+    dcdOutFile_d = cg_dna.open_dcd_write("cgDNA.dcd")
+    dcdOutFile_p = cg_pro.open_dcd_write("cgPro.dcd")
 
     nbeads = cg_dna.natoms()
     nbeads_p = cg_pro.natoms()
@@ -994,8 +994,8 @@ def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads,
     U_T0 = Ub0 + Uwca0
     #s wca1 = np.copy(wca0)
 
-    a = 0 # times configuration was accepted
-    r = 0 # times configuration was rejected
+    n_a = 0 # times configuration was accepted
+    r_a = 0 # times configuration was rejected
 
     for i in xrange(nsteps):
 
@@ -1046,7 +1046,7 @@ def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads,
         # if True:
         if test < p:
             # print 'wrote new dcd frame (end of loop', i, ' trial_bead=', trial_bead, ')'+' accepted new configuration\n'
-            a += 1                                     # increment the accepted counter
+            n_a += 1                                     # increment the accepted counter
             cg_dna.coor()[0] = np.copy(coor)           # store the dna coordinates
             cg_pro.coor()[0] = np.copy(p_coor)
             vecXYZ = np.copy(xyz)                      # store the dna orientations
@@ -1059,11 +1059,11 @@ def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads,
 
         else :
             # print 'wrote new dcd frame (end of loop', i, ' trial_bead=', trial_bead, ')'+' rejected new configuration\n'
-            r += 1                                     # increment the rejected counter
+            r_a += 1                                     # increment the rejected counter
             coor = np.copy(cg_dna.coor()[0])           # reset the dna coordinates
             p_coor = np.copy(cg_pro.coor()[0])         # reset the protein coordinates
             xyz = np.copy(vecXYZ)                      # reset the dna orientations
-            if a:
+            if saveFalse:
                 cg_dna.write_dcd_step(dcdOutFile_d, 0, 0)
                 cg_pro.write_dcd_step(dcdOutFile_p, 0, 0)
 
@@ -1076,7 +1076,7 @@ def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads,
     cg_pro.close_dcd_write(dcdOutFile_p)
     #s outData.close()
 
-    return (cg_dna, vecXYZ, cg_pro, a, r)
+    return (cg_dna, vecXYZ, cg_pro, n_a, r_a)
 
 def makeLongDNA(n_lp):
     print 'making DNA that is %d*lp long' %n_lp
@@ -1227,14 +1227,14 @@ def main():
             l = [range(1, 31), range(167, 198), range(334, 365),
                  range(501, 532), range(667, 694)]
             pro_groups =  []
-            pro_groups.append(['m0', 'n0', 'o0', 'p0',
-                               'q0', 'r0', 's0', 't0'])
-            pro_groups.append(['M1', 'N1', 'O1', 'P1',
-                               'Q1', 'R1', 'S1', 'T1'])
+            pro_groups.append(['A0', 'B0', 'C0', 'D0',
+                               'E0', 'F0', 'G0', 'H0'])
             pro_groups.append(['A1', 'B1', 'C1', 'D1',
                                'E1', 'F1', 'G1', 'H1'])
-            pro_groups.append(['a0', 'b0', 'c0', 'd0',
-                               'e0', 'f0', 'g0', 'h0'])
+            pro_groups.append(['M1', 'N1', 'O1', 'P1',
+                               'Q1', 'R1', 'S1', 'T1'])
+            pro_groups.append(['M0', 'N0', 'O0', 'P0',
+                               'Q0', 'R0', 'S0', 'T0'])
 
         elif ARGS.pdb == '1zbb_tetra_corrected.pdb':
             dna_chains = ['L', 'J']
@@ -1309,13 +1309,13 @@ def main():
 
     # setup output
     timestr = time.strftime("%y%m%d_%H%M%S")
-    fName = 'output/' + timestr + '_dnaMoves.o'
+    fName = 'dnaMoves.o'
     outData = open(fName, 'a')
     outData.write("# pdb=%s\t iters=%d\t nsteps=%d\t nSoft=%d\t theta_max=%f \n# moves\t rg/lp\t\t re/lp\t\t a\t r\n" %(all_atom_pdb, iters, nsteps, nSoft, theta_max))
 
-    dna_dcd_name = 'output/' + timestr + '_aaDNA_Moves.dcd'
+    dna_dcd_name = 'aaDNA.dcd'
     aa_dna_dcdOutFile = aa_dna.open_dcd_write(dna_dcd_name)
-    pro_dcd_name = 'output/' + timestr + '_aaPro_Moves.dcd'
+    pro_dcd_name = 'aaPro.dcd'
     aa_pro_dcdOutFile = aa_pro.open_dcd_write(pro_dcd_name)
 
     tic = time.time()
@@ -1326,12 +1326,13 @@ def main():
         # print 'cg_pro.coor()[0]:\n',  cg_pro.coor()[0]
         # print 'cg_pro_orig.coor()[0]:\n',  cg_pro_orig.coor()[0]
 
+        # this was useful for looking at the extention of long DNA
         rg_lp[i] = cg_dna.calcrg(0)/lp
         re_lp[i] = mag(cg_dna.coor()[0, -1]-cg_dna.coor()[0, 0])/lp
         print 'iter:', i+1, 'of', iters, ' (a, r) = ', (a, r), 'rg/lp=', rg_lp[i], 're/lp=', re_lp[i]
-
         outData.write("%d\t%f\t%f\t%d\t%r\n" %((i+1)*nsteps, rg_lp[i], re_lp[i], a, r) )                #output
 
+        # generate plot of the coarse grained atoms
         if ARGS.show:
             fig = pylab.figure()
             ax = Axes3D(fig)
@@ -1342,10 +1343,11 @@ def main():
             fig.suptitle('After %d steps Rg/lp=%f  Re/lp=%f' %((i+1)*nsteps, rg_lp[i], re_lp[i]))
 
         # recover an all atom representation
-        # DNA
+        # ~~DNA~~
         error, aa_dna = recover_aaDNA_model(cg_dna, aa_dna, vecXYZ, all_beads, dbead_masks)
         aa_dna.write_dcd_step(aa_dna_dcdOutFile, 0, 0)
-        # Protein
+        
+        # ~~Protein~~
         for (i, mask) in enumerate(aa_pgroup_masks):
             # define a temporary sasmol object for the final cg protein group
             cg_pro_group_final = sasmol.SasMol(0)
@@ -1371,13 +1373,21 @@ def main():
             all_proteins[i].align(0, coor_sub_2, com_sub_2,
                                   coor_sub_1, com_sub_1)
             error = aa_pro.set_coor_using_mask(all_proteins[i], 0, mask)
-        #aa_pro.write_dcd_step(aa_pro_dcdOutFile, 0, 0)
 
         # aa_pro = recover_aaPro_model(aa_pgroup_masks, cg_pro, cg_pro_orig, cg_pgroup_masks, all_proteins, aa_pro) # <--- should use this
         aa_pro.write_dcd_step(aa_pro_dcdOutFile, 0, 0)
 
-        os.system("cp cg_dna_moves.dcd output/" + timestr + '_cgDNA_Moves.dcd')
-        os.system("cp cg_pro_moves.dcd output/" + timestr + '_cgPro_Moves.dcd')
+    dir_out = timestr + "_out/"
+    os.system("mkdir "+dir_out)
+    os.system("mv cgDNA.dcd " + dir_out)
+    os.system("mv cgPro.dcd " + dir_out)
+    os.system("mv aaDNA.dcd " + dir_out)
+    os.system("mv aaPro.dcd " + dir_out)
+    os.system("mv aaPro.pdb " + dir_out)
+    os.system("mv cgPro.pdb " + dir_out)
+    os.system("mv aaDNA.pdb " + dir_out)
+    os.system("mv cgDNA.pdb " + dir_out)
+    os.system("mv dnaMoves.o " + dir_out)
 
     toc = time.time() - tic ; print 'run time =', toc, 'seconds'
 
