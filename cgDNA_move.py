@@ -1,8 +1,9 @@
-#!/usr/bin/evn python
+#!/share/apps/bin/python 
+# /usr/bin/evn python
 # Author:   --<Steven Howell>
 # Purpose:  Provide structure movement using SASSIE protocols
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.29 2014-06-24 15:55:11 schowell Exp $
+# $Id: cgDNA_move.py,v 1.30 2014-07-09 15:41:13 schowell Exp $
 
 # time using FORTRAN double loop, N=1000, iters=1000 (so 1*10^6 steps): 958.887075186 seconds
 # time using python double loop, N=1000, iters=1000 (so 1*10^6 steps):
@@ -148,6 +149,7 @@ def make_cg_model(all_atom_pdb, dna_chains, dna_resids, l, pro_groups,
     # load the dna into its own sasmol object
     aa_dna = sasmol.SasMol(0)
     error, mask = aa_all.get_subset_mask('((moltype[i] == "dna" or moltype[i] == "rna"))')  # THIS SHOLUD NOT HAVE or rna
+    dna_mask = mask
     error = aa_all.copy_molecule_using_mask(aa_dna, mask, frame) # pick out the dna
     aa_dna.write_pdb("aaDNA.pdb", frame, 'w')
     natomsD = aa_dna.natoms()
@@ -268,6 +270,7 @@ def make_cg_model(all_atom_pdb, dna_chains, dna_resids, l, pro_groups,
     # load the protein into its own sasmol object
     aa_pro = sasmol.SasMol(0)
     error, mask = aa_all.get_subset_mask('((moltype[i] == "protein"))')
+    pro_mask = mask
     error = aa_all.copy_molecule_using_mask(aa_pro, mask, frame)
     aa_pro.write_pdb("aaPro.pdb", frame, 'w')
     print 'protein atoms = ', aa_pro.natoms()
@@ -323,7 +326,7 @@ def make_cg_model(all_atom_pdb, dna_chains, dna_resids, l, pro_groups,
     # print "M (end of 'make_cgDNA_model')\n", M
     return (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, all_beads, all_proteins,
             trialbeads, beadgroups, dna_masks, aa_pgroup_masks, move_masks,
-            cg_pgroup_masks)
+            cg_pgroup_masks, aa_all, dna_mask, pro_mask)
 
 def recover_aaPro_model(aa_pgroup_masks, cg_pro_final, cg_pro_orig, cg_pgroup_masks, all_proteins, aa_pro):
     """
@@ -995,7 +998,7 @@ def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads,
     #s wca1 = np.copy(wca0)
 
     n_a = 0 # times configuration was accepted
-    r_a = 0 # times configuration was rejected
+    n_r = 0 # times configuration was rejected
 
     for i in xrange(nsteps):
 
@@ -1059,13 +1062,16 @@ def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads,
 
         else :
             # print 'wrote new dcd frame (end of loop', i, ' trial_bead=', trial_bead, ')'+' rejected new configuration\n'
-            r_a += 1                                     # increment the rejected counter
+            n_r += 1                                     # increment the rejected counter
             coor = np.copy(cg_dna.coor()[0])           # reset the dna coordinates
             p_coor = np.copy(cg_pro.coor()[0])         # reset the protein coordinates
             xyz = np.copy(vecXYZ)                      # reset the dna orientations
             if saveFalse:
                 cg_dna.write_dcd_step(dcdOutFile_d, 0, 0)
                 cg_pro.write_dcd_step(dcdOutFile_p, 0, 0)
+                
+        if n_a == 0:
+            nsteps += 1
 
         # cg_dna.write_dcd_step(dcdOutFile_d, 0, 0)
         # cg_pro.write_dcd_step(dcdOutFile_p, 0, 0)
@@ -1076,7 +1082,7 @@ def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads,
     cg_pro.close_dcd_write(dcdOutFile_p)
     #s outData.close()
 
-    return (cg_dna, vecXYZ, cg_pro, n_a, r_a)
+    return (cg_dna, vecXYZ, cg_pro, n_a, n_r)
 
 def makeLongDNA(n_lp):
     print 'making DNA that is %d*lp long' %n_lp
@@ -1178,7 +1184,7 @@ def main():
     theta_max = ARGS.theta_max
     bp_perBead = ARGS.bp_perBead
     nSoft = ARGS.nsoft
-    lp = 530      # persistence length  (lp = 530A)
+    lp = 5.3      # persistence length  (lp = 530A)
     w = 46        # width of chain in A (w = 46A)l
 
     if ARGS.py_collide:
@@ -1266,8 +1272,8 @@ def main():
 
         (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, all_beads, all_proteins,
          trialbeads, beadgroups, dbead_masks, aa_pgroup_masks, move_masks,
-         cg_pgroup_masks) = make_cg_model(all_atom_pdb, dna_chains, dna_resids,
-                                          l, pro_groups, bp_perBead)
+         cg_pgroup_masks, aa_all, dna_mask, pro_mask) = make_cg_model(
+             all_atom_pdb, dna_chains, dna_resids, l, pro_groups, bp_perBead)
 
         cg_pro_orig = sasmol.SasMol(0)
         error = cg_pro.copy_molecule_using_mask(cg_pro_orig, np.ones(len(cg_pro.coor()[0])), 0)
@@ -1317,6 +1323,8 @@ def main():
     aa_dna_dcdOutFile = aa_dna.open_dcd_write(dna_dcd_name)
     pro_dcd_name = 'aaPro.dcd'
     aa_pro_dcdOutFile = aa_pro.open_dcd_write(pro_dcd_name)
+    all_dcd_name = 'c11_withTails.dcd'
+    aa_all_dcdOutFile = aa_all.open_dcd_write(all_dcd_name)    
 
     tic = time.time()
     for i in xrange(iters):
@@ -1343,40 +1351,46 @@ def main():
             fig.suptitle('After %d steps Rg/lp=%f  Re/lp=%f' %((i+1)*nsteps, rg_lp[i], re_lp[i]))
 
         # recover an all atom representation
-        # ~~DNA~~
-        error, aa_dna = recover_aaDNA_model(cg_dna, aa_dna, vecXYZ, all_beads, dbead_masks)
-        aa_dna.write_dcd_step(aa_dna_dcdOutFile, 0, 0)
-        
-        # ~~Protein~~
-        for (i, mask) in enumerate(aa_pgroup_masks):
-            # define a temporary sasmol object for the final cg protein group
-            cg_pro_group_final = sasmol.SasMol(0)
-            error = cg_pro.copy_molecule_using_mask(cg_pro_group_final,
-                                                    cg_pgroup_masks[i], 0)
-
-            # get the sub_1 inputs for the align function
-            com_sub_1 = cg_pro_group_final.calccom(0)
-            cg_pro_group_final.center(0)
-            coor_sub_1 = cg_pro_group_final.coor()[0]
-
-            all_proteins[i].center(0)
-            # define a temporary sasmol object for the original cg protein group
-            cg_pro_group_orig = sasmol.SasMol(0)
-            error, aa2cg_mask = all_proteins[i].get_subset_mask("(name[i] == 'CA')")
-            error = all_proteins[i].copy_molecule_using_mask(cg_pro_group_orig,
-                                                             aa2cg_mask, 0)
-            # get the sub_2 inputs for the align function
-            com_sub_2 = cg_pro_group_orig.calccom(0)
-            cg_pro_group_orig.center(0)
-            coor_sub_2 = cg_pro_group_orig.coor()[0]
-
-            all_proteins[i].align(0, coor_sub_2, com_sub_2,
-                                  coor_sub_1, com_sub_1)
-            error = aa_pro.set_coor_using_mask(all_proteins[i], 0, mask)
-
-        # aa_pro = recover_aaPro_model(aa_pgroup_masks, cg_pro, cg_pro_orig, cg_pgroup_masks, all_proteins, aa_pro) # <--- should use this
-        aa_pro.write_dcd_step(aa_pro_dcdOutFile, 0, 0)
-
+        if a > 0:
+            # ~~DNA~~
+            error, aa_dna = recover_aaDNA_model(cg_dna, aa_dna, vecXYZ, all_beads, dbead_masks)
+            aa_dna.write_dcd_step(aa_dna_dcdOutFile, 0, 0)
+            
+            # ~~Protein~~
+            for (i, mask) in enumerate(aa_pgroup_masks):
+                # define a temporary sasmol object for the final cg protein group
+                cg_pro_group_final = sasmol.SasMol(0)
+                error = cg_pro.copy_molecule_using_mask(cg_pro_group_final,
+                                                        cg_pgroup_masks[i], 0)
+    
+                # get the sub_1 inputs for the align function
+                com_sub_1 = cg_pro_group_final.calccom(0)
+                cg_pro_group_final.center(0)
+                coor_sub_1 = cg_pro_group_final.coor()[0]
+    
+                all_proteins[i].center(0)
+                # define a temporary sasmol object for the original cg protein group
+                cg_pro_group_orig = sasmol.SasMol(0)
+                error, aa2cg_mask = all_proteins[i].get_subset_mask("(name[i] == 'CA')")
+                error = all_proteins[i].copy_molecule_using_mask(cg_pro_group_orig,
+                                                                 aa2cg_mask, 0)
+                # get the sub_2 inputs for the align function
+                com_sub_2 = cg_pro_group_orig.calccom(0)
+                cg_pro_group_orig.center(0)
+                coor_sub_2 = cg_pro_group_orig.coor()[0]
+    
+                all_proteins[i].align(0, coor_sub_2, com_sub_2,
+                                      coor_sub_1, com_sub_1)
+                error = aa_pro.set_coor_using_mask(all_proteins[i], 0, mask)
+    
+            # aa_pro = recover_aaPro_model(aa_pgroup_masks, cg_pro, cg_pro_orig, cg_pgroup_masks, all_proteins, aa_pro) # <--- should use this
+            aa_pro.write_dcd_step(aa_pro_dcdOutFile, 0, 0)
+            
+            # ~~Complete Structure~~
+            aa_all.set_coor_using_mask(aa_pro, 0, pro_mask)
+            aa_all.set_coor_using_mask(aa_dna, 0, dna_mask)
+            aa_all.write_dcd_step(aa_all_dcdOutFile, 0, 0)
+            
     dir_out = timestr + "_out/"
     os.system("mkdir "+dir_out)
     os.system("mv cgDNA.dcd " + dir_out)
@@ -1388,6 +1402,7 @@ def main():
     os.system("mv aaDNA.pdb " + dir_out)
     os.system("mv cgDNA.pdb " + dir_out)
     os.system("mv dnaMoves.o " + dir_out)
+    os.system("mv c11_withTails.dcd " + dir_out)
 
     toc = time.time() - tic ; print 'run time =', toc, 'seconds'
 
