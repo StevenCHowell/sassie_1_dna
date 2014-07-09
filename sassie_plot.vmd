@@ -1,0 +1,78 @@
+#!/usr/local/bin/vmd
+# Run it in vmd TCL interface, type the following:
+# source sassie_plot.vmd
+# or run by using: vmd -e sassie_plot.vmd
+# $Id: sassie_plot.vmd,v 1.1 2014-07-09 17:22:25 schowell Exp $
+
+# code to draw the contacts
+#s proc vmd_draw_arrow2 {mol start end} {
+#s     # a double-sided arrow: a cylinder and a cone at each end
+#s     set middle1 [vecadd $start [vecscale 0.3 [vecsub $end $start]]]
+#s     set middle2 [vecadd $start [vecscale 0.7 [vecsub $end $start]]]
+#s     graphics $mol cylinder $middle1 $middle2 radius 1
+#s     graphics $mol cone $middle2 $end radius 1.5
+#s     graphics $mol cone $middle1 $start radius 1.5
+#s }
+#s 
+#s proc vmd_draw_tertiary {mol res1 res2} {
+#s 
+#s    set a [atomselect $mol "residue $res1 and name N1"]
+#s    set b [atomselect $mol "residue $res2 and name N1"]
+#s    lassign [$a get {x y z}] xyza
+#s    lassign [$b get {x y z}] xyzb
+#s 
+#s    graphics top sphere $xyza radius 3 resolution 13
+#s    graphics top sphere $xyzb radius 3 resolution 13
+#s 
+#s    draw arrow2 $xyza $xyzb
+#s }
+#s 
+#s proc sasref_plot {pdbfile} {
+
+mol delete all
+
+mol new aaDNA.pdb type pdb first 0 last -1 step 1 filebonds 1 autobonds 1 waitfor 1
+mol addfile aaDNA.dcd type dcd first 0 last -1 step 1 filebonds 1 autobands 1 waitfor all
+mol representation Lines 1
+mol material Opaque
+mol color ColorID 3
+mol selection all
+mol modrep 0 top
+
+mol new aaPro.pdb type pdb first 0 last -1 step 1 filebonds 1 autobonds 1 waitfor 1
+mol addfile aaPro.dcd type dcd first 0 last -1 step 1 filebonds 1 autobands 1 waitfor all
+mol representation Lines 1
+mol material Opaque
+mol color ColorID 0
+mol selection all
+mol modrep 0 top
+
+
+# cosmetics
+axes location off
+color Display {Background} black
+label textsize 1.0
+rotate stop
+display resetview
+display projection orthographic
+
+#s graphics top delete all
+#s graphics top material Transparent
+#s # for ncp1-4.pdb, every PDB has 1308 residues
+#s graphics top color blue
+#s draw tertiary 1288 2585
+#s graphics top color red
+#s draw tertiary 2596 3893 
+#s graphics top color green
+#s draw tertiary 3904 5201 
+#s 
+#s # save images
+#s display update
+#s #render Raster3D $pdbfile.r3d 
+#s render snapshot ${pdbfile}_1.tga
+#s rotate x by 90
+#s render snapshot ${pdbfile}_2.tga 
+#s rotate z by 90
+#s render snapshot ${pdbfile}_3.tga 
+#s # convert %s %s.png
+#s }

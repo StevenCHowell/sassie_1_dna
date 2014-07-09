@@ -3,7 +3,7 @@
 # Author:   --<Steven Howell>
 # Purpose:  Provide structure movement using SASSIE protocols
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.30 2014-07-09 15:41:13 schowell Exp $
+# $Id: cgDNA_move.py,v 1.31 2014-07-09 17:22:25 schowell Exp $
 
 # time using FORTRAN double loop, N=1000, iters=1000 (so 1*10^6 steps): 958.887075186 seconds
 # time using python double loop, N=1000, iters=1000 (so 1*10^6 steps):
@@ -1005,7 +1005,7 @@ def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads,
         trial_bead = trialbeads[int((nflex)*random.random())]  #; print 'trial_bead =', trial_bead
         # trial_bead = trialbeads[i%len(trialbeads)]
 
-        thetaZ_max = np.float(theta_max) / 50. # this should be something small
+        thetaZ_max = np.float(theta_max) / 1.0  # this should be something small
         thetaX = theta_max * random.random() - theta_max/2
         thetaY = theta_max * random.random() - theta_max/2
         thetaZ = thetaZ_max * random.random() - thetaZ_max/2
@@ -1184,7 +1184,7 @@ def main():
     theta_max = ARGS.theta_max
     bp_perBead = ARGS.bp_perBead
     nSoft = ARGS.nsoft
-    lp = 5.3      # persistence length  (lp = 530A)
+    lp = 0.53      # persistence length  (lp = 530A)
     w = 46        # width of chain in A (w = 46A)l
 
     if ARGS.py_collide:
