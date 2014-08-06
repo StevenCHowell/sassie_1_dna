@@ -2,7 +2,7 @@
 # Author:  Steven C. Howell
 # Purpose: Replace DNA sequence with another sequence
 # Created: 04/24/2014
-# $Id: pdb2psfgen.py,v 1.2 2014-05-23 14:15:03 schowell Exp $
+# $Id: pdb2psfgen.py,v 1.3 2014-08-06 15:38:38 schowell Exp $
 '''
 This script loads a pdb structure file of DNA, and creates a '*.patches' file
 with the psfgen patches needed to use psfgen to create the structure.
@@ -17,8 +17,8 @@ allAtomPDB = sys.argv[1]
 m1 = sasmol.SasMol(0)
 m1.read_pdb(allAtomPDB)
 
-chain1 = 'J'
-chain2 = 'L'
+chain1 = 'I'
+chain2 = 'J'
     
 names = m1.resname()
 ids = m1.resid()
@@ -31,7 +31,7 @@ for ext, item in enumerate(pdbStrings):
     psfgenFile = psfgenFile.replace(item, '.patches')
 
 outfile = open(psfgenFile, 'w')      # open the file
-timestr = time.strftime("created on %d %B %Y by 'pdb2psfgen.py'")
+timestr = time.strftime("created on %d %B %Y by 'pdb2psfgen.py'\n")
 outfile.write(timestr)
 
 pyr = ['DC', 'DT', 'CYT', 'THY']
@@ -51,8 +51,9 @@ for (j, i) in enumerate(ids):
         elif c[j] in chain2:
             dna = 'dna2:%d\n' %i
         else:
-            print 'ERROR!!! residue from unknown dna chain (protein ?)'
-            dna = 'protein:%d\n' % i
+            print 'Skipping residue from unspecified chain: ', c[j]
+            break
+            #s dna = 'protein:%d\n' % i
             
         if names[j] in pyr:
             outfile.write(pyrStr + dna)
@@ -61,7 +62,8 @@ for (j, i) in enumerate(ids):
             outfile.write(purStr + dna)
             # print purStr + dna
         else:
-            print '\n\n ERROR!!! skipped unknown resname'
+            print 'ERROR!!! unknown resname in specified chain: ', names[j]
+            print '\n'
 
 outfile.close()            
 

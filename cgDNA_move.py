@@ -1,9 +1,9 @@
-#!/share/apps/bin/python 
+#!/share/apps/bin/python
 # /usr/bin/evn python
 # Author:   --<Steven Howell>
 # Purpose:  Provide structure movement using SASSIE protocols
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.31 2014-07-09 17:22:25 schowell Exp $
+# $Id: cgDNA_move.py,v 1.32 2014-08-06 15:38:38 schowell Exp $
 
 # time using FORTRAN double loop, N=1000, iters=1000 (so 1*10^6 steps): 958.887075186 seconds
 # time using python double loop, N=1000, iters=1000 (so 1*10^6 steps):
@@ -19,7 +19,8 @@ import os.path as op
 import subprocess
 import logging
 import group_rotation
-import sys ; sys.path.append('./')
+# import sys ; sys.path.append('./')
+import warnings
 #import sys ; sys.path.append('/home/schowell/Dropbox/gw_phd/code/pylib/sassie/')
 # import collision32 as collision
 #s import collision64 as collision
@@ -1005,7 +1006,7 @@ def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads,
         trial_bead = trialbeads[int((nflex)*random.random())]  #; print 'trial_bead =', trial_bead
         # trial_bead = trialbeads[i%len(trialbeads)]
 
-        thetaZ_max = np.float(theta_max) / 1.0  # this should be something small
+        thetaZ_max = np.float(theta_max)  # this should be something small
         thetaX = theta_max * random.random() - theta_max/2
         thetaY = theta_max * random.random() - theta_max/2
         thetaZ = thetaZ_max * random.random() - thetaZ_max/2
@@ -1041,13 +1042,30 @@ def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads,
 
         U_T1 =  Ub1 + Uwca1
         dU = U_T1 - U_T0
-        p = np.exp(-dU)
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings('error') # need this for np warnings
+            try:
+                p = np.exp(-dU)
+            except Warning:
+                print '!!!!!!!!!!!!!!!!!!!!!'
+                print '!!! OverflowError !!!'
+                print '!!!!!!!!!!!!!!!!!!!!!'
+                print 'dU = ',  dU
+                if dU > 99:
+                    p =  0
+                    print 'energy was large, setting probability to 0'
+                elif dU < 0:
+                    print 'energy was negative, setting probability to 1'
+                    p =  1
+                else:
+                    print 'not sure where the error was from'
 
         test = random.random()
 
         # if accepted write new coordinates, else write old again
         # if True:
-        if test < p:
+        if test <= p:
             # print 'wrote new dcd frame (end of loop', i, ' trial_bead=', trial_bead, ')'+' accepted new configuration\n'
             n_a += 1                                     # increment the accepted counter
             cg_dna.coor()[0] = np.copy(coor)           # store the dna coordinates
@@ -1069,7 +1087,7 @@ def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads,
             if saveFalse:
                 cg_dna.write_dcd_step(dcdOutFile_d, 0, 0)
                 cg_pro.write_dcd_step(dcdOutFile_p, 0, 0)
-                
+
         if n_a == 0:
             nsteps += 1
 
@@ -1184,7 +1202,7 @@ def main():
     theta_max = ARGS.theta_max
     bp_perBead = ARGS.bp_perBead
     nSoft = ARGS.nsoft
-    lp = 0.53      # persistence length  (lp = 530A)
+    lp = 0.053      # persistence length  (lp = 530A)
     w = 46        # width of chain in A (w = 46A)l
 
     if ARGS.py_collide:
@@ -1324,7 +1342,7 @@ def main():
     pro_dcd_name = 'aaPro.dcd'
     aa_pro_dcdOutFile = aa_pro.open_dcd_write(pro_dcd_name)
     all_dcd_name = 'c11_withTails.dcd'
-    aa_all_dcdOutFile = aa_all.open_dcd_write(all_dcd_name)    
+    aa_all_dcdOutFile = aa_all.open_dcd_write(all_dcd_name)
 
     tic = time.time()
     for i in xrange(iters):
@@ -1355,19 +1373,19 @@ def main():
             # ~~DNA~~
             error, aa_dna = recover_aaDNA_model(cg_dna, aa_dna, vecXYZ, all_beads, dbead_masks)
             aa_dna.write_dcd_step(aa_dna_dcdOutFile, 0, 0)
-            
+
             # ~~Protein~~
             for (i, mask) in enumerate(aa_pgroup_masks):
                 # define a temporary sasmol object for the final cg protein group
                 cg_pro_group_final = sasmol.SasMol(0)
                 error = cg_pro.copy_molecule_using_mask(cg_pro_group_final,
                                                         cg_pgroup_masks[i], 0)
-    
+
                 # get the sub_1 inputs for the align function
                 com_sub_1 = cg_pro_group_final.calccom(0)
                 cg_pro_group_final.center(0)
                 coor_sub_1 = cg_pro_group_final.coor()[0]
-    
+
                 all_proteins[i].center(0)
                 # define a temporary sasmol object for the original cg protein group
                 cg_pro_group_orig = sasmol.SasMol(0)
@@ -1378,19 +1396,19 @@ def main():
                 com_sub_2 = cg_pro_group_orig.calccom(0)
                 cg_pro_group_orig.center(0)
                 coor_sub_2 = cg_pro_group_orig.coor()[0]
-    
+
                 all_proteins[i].align(0, coor_sub_2, com_sub_2,
                                       coor_sub_1, com_sub_1)
                 error = aa_pro.set_coor_using_mask(all_proteins[i], 0, mask)
-    
+
             # aa_pro = recover_aaPro_model(aa_pgroup_masks, cg_pro, cg_pro_orig, cg_pgroup_masks, all_proteins, aa_pro) # <--- should use this
             aa_pro.write_dcd_step(aa_pro_dcdOutFile, 0, 0)
-            
+
             # ~~Complete Structure~~
             aa_all.set_coor_using_mask(aa_pro, 0, pro_mask)
             aa_all.set_coor_using_mask(aa_dna, 0, dna_mask)
             aa_all.write_dcd_step(aa_all_dcdOutFile, 0, 0)
-            
+
     dir_out = timestr + "_out/"
     os.system("mkdir "+dir_out)
     os.system("mv cgDNA.dcd " + dir_out)
