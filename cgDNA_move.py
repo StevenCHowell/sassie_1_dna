@@ -3,7 +3,7 @@
 # Author:   --<Steven Howell>
 # Purpose:  Provide structure movement using SASSIE protocols
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.32 2014-08-06 15:38:38 schowell Exp $
+# $Id: cgDNA_move.py,v 1.33 2014-08-06 15:48:07 schowell Exp $
 
 # time using FORTRAN double loop, N=1000, iters=1000 (so 1*10^6 steps): 958.887075186 seconds
 # time using python double loop, N=1000, iters=1000 (so 1*10^6 steps):
@@ -1006,7 +1006,7 @@ def dna_mc(nsteps, cg_dna, cg_pro, vecXYZ, lp, w, theta_max, trialbeads,
         trial_bead = trialbeads[int((nflex)*random.random())]  #; print 'trial_bead =', trial_bead
         # trial_bead = trialbeads[i%len(trialbeads)]
 
-        thetaZ_max = np.float(theta_max)  # this should be something small
+        thetaZ_max = np.float(theta_max*10)  # this should be something small
         thetaX = theta_max * random.random() - theta_max/2
         thetaY = theta_max * random.random() - theta_max/2
         thetaZ = thetaZ_max * random.random() - thetaZ_max/2
@@ -1259,7 +1259,49 @@ def main():
                                'Q1', 'R1', 'S1', 'T1'])
             pro_groups.append(['M0', 'N0', 'O0', 'P0',
                                'Q0', 'R0', 'S0', 'T0'])
+            
+        elif  ARGS.pdb ==  'c11_noTails_noH.pdb':
+            '''The C11 nucleosome tetramer without the protein tails'''
+            dna_chains = ['J', 'L']
+            dna_resids.append([1, 693])
+            dna_resids.append([693, 1])
+            # continuous flexible residues of DNA on first chain
+            # recall that range(a, b) excludes upper lim: [a, b)
+            #s l = [range(1, 31), range(167, 198), range(334, 365),
+            #s     range(501, 532), range(667, 694)]
+            #s l = [range(1, 31), range(167, 198)]
+            l = [range(1), range(167, 180)]
+            pro_groups =  []
+            pro_groups.append(['A0', 'B0', 'C0', 'D0',
+                               'E0', 'F0', 'G0', 'H0'])
+            pro_groups.append(['A1', 'B1', 'C1', 'D1',
+                               'E1', 'F1', 'G1', 'H1',
+                               'M1', 'N1', 'O1', 'P1',
+                               'Q1', 'R1', 'S1', 'T1',
+                               'M0', 'N0', 'O0', 'P0',
+                               'Q0', 'R0', 'S0', 'T0'])
 
+        elif  ARGS.pdb ==  'c11_noTails.pdb':
+            '''The C11 nucleosome tetramer without the protein tails'''
+            dna_chains = ['J', 'L']
+            dna_resids.append([1, 693])
+            dna_resids.append([693, 1])
+            # continuous flexible residues of DNA on first chain
+            # recall that range(a, b) excludes upper lim: [a, b)
+            #s l = [range(1, 31), range(167, 198), range(334, 365),
+            #s     range(501, 532), range(667, 694)]
+            #s l = [range(1, 31), range(167, 198)]
+            l = [range(1), range(167, 180)]
+            pro_groups =  []
+            pro_groups.append(['A0', 'B0', 'C0', 'D0',
+                               'E0', 'F0', 'G0', 'H0'])
+            pro_groups.append(['A1', 'B1', 'C1', 'D1',
+                               'E1', 'F1', 'G1', 'H1',
+                               'M1', 'N1', 'O1', 'P1',
+                               'Q1', 'R1', 'S1', 'T1',
+                               'M0', 'N0', 'O0', 'P0',
+                               'Q0', 'R0', 'S0', 'T0'])
+            
         elif ARGS.pdb == '1zbb_tetra_corrected.pdb':
             dna_chains = ['L', 'J']
             dna_resids.append([1, 694])
@@ -1409,6 +1451,7 @@ def main():
             aa_all.set_coor_using_mask(aa_dna, 0, dna_mask)
             aa_all.write_dcd_step(aa_all_dcdOutFile, 0, 0)
 
+    aa_all.close_dcd_write(aa_all_dcdOutFile)
     dir_out = timestr + "_out/"
     os.system("mkdir "+dir_out)
     os.system("mv cgDNA.dcd " + dir_out)
