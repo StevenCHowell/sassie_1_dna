@@ -2,7 +2,7 @@
 # Author:  Steven C. Howell
 # Purpose: Prepare PDB for modeling
 # Created: 04/24/2014
-# $Id: makeHistones.py,v 1.3 2014-08-07 21:02:14 schowell Exp $
+# $Id: chain2_pdb-seq.py,v 1.1 2014-08-13 18:07:51 schowell Exp $
 '''
 This script creates a separate pdb for each chain of 'aa_pdb'
 It also creates a sequence file for the residue sequence of that chain
@@ -35,7 +35,7 @@ def parse():
     )
 
     parser.add_argument("-p", "--pdb", help="all atom pdb file")
-    parser.add_argument("-c", "--chains", help="chains to extract, e.g.: [\"\'x\'\",\"\'y\'\"] or [\\'x\\',\\'y\\']")
+    parser.add_argument("-c", "--chains", type=list, help="chains to extract, e.g.: [\"\'x\'\",\"\'y\'\"] or [\\'x\\',\\'y\\']")
 
     return parser.parse_args()
 
@@ -79,16 +79,16 @@ def main():
            'THY': 'T', 
            'CYT': 'C'}
     
-    chains = ['I','J']
-    print 'chains =', chains
+    # chains = ['I','J']
+    # print 'chains =', chains
     print 'ARGS.chains =', ARGS.chains
     
     
-    for chain in chains:
+    for chain in ARGS.chains:
         if chain.lower() == chain:
-            chain_name = 'chain_' + chain + '0'
+            chain_name = '_chain_' + chain + '0'
         else:
-            chain_name = 'chain_' + chain + '1'
+            chain_name = '_chain_' + chain + '1'
         chain_name = ARGS.pdb[:-4] + chain_name
         basis_filter = "(chain[i] == '" + chain + "')"
         error, mask = aa.get_subset_mask(basis_filter)
@@ -120,8 +120,15 @@ def main():
         #with open(chain_name+'.txt', 'w') as outFile:
             #for res in residue_sequence:
                 #outFile.write(str(res.resid) + '\t' + res.resname + '\n')
-    
-        with open(chain_name+'.seq', 'w') as outFile:          
+        if 'rna' in chain_mol.moltypes():
+            chain_mol.moltypes().remove('rna')
+            print "removed 'rna' from moltypes"
+            if len(chain_mol.moltypes()) == 0:
+                chain_mol.moltypes().append('dna')
+                print "appended 'dna' to moltypes"
+                
+        with open(chain_name+'.seq', 'w') as outFile:
+            print outFile.closed
             if chain_mol.moltypes() == ['protein']:
                 for (i, res) in enumerate(residue_sequence):
                     outFile.write(amino_acids[res.resname])
@@ -130,6 +137,7 @@ def main():
             elif chain_mol.moltypes() == ['dna']:
                 for (i, res) in enumerate(residue_sequence):
                     outFile.write(dna[res.resname])
+                    print 'printed', dna[res.resname], 'to', chain_name, '.seq'
                     if 0 == (i + 1) % 50:
                         outFile.write('\n')
             else:
@@ -142,7 +150,7 @@ def main():
         print 'max resid:', res_max
         
         print 'finished chain', chain_name
-    
+        print outFile.closed
     
     print 'COMPLETE :(|) '
 

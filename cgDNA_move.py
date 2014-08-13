@@ -3,7 +3,7 @@
 # Author:   --<Steven Howell>
 # Purpose:  Provide structure movement using SASSIE protocols
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.34 2014-08-13 13:02:19 schowell Exp $
+# $Id: cgDNA_move.py,v 1.35 2014-08-13 18:07:50 schowell Exp $
 
 # time using FORTRAN double loop, N=1000, iters=1000 (so 1*10^6 steps): 958.887075186 seconds
 # time using python double loop, N=1000, iters=1000 (so 1*10^6 steps):
@@ -1449,8 +1449,8 @@ def main():
         if ARGS.all_files:
             rg_lp[i] = cg_dna.calcrg(0)/lp
             re_lp[i] = mag(cg_dna.coor()[0, -1]-cg_dna.coor()[0, 0])/lp
-        
-            outData.write("%d\t%f\t%f\t%d\t%r\n" %((i+1)*nsteps, rg_lp[i], re_lp[i], a, r) )                #output
+            outData.write("%d\t%f\t%f\t%d\t%r\n" %((i+1)*nsteps,
+                            rg_lp[i], re_lp[i], a, r) )                #output
 
         # generate plot of the coarse grained atoms
         if ARGS.show:
