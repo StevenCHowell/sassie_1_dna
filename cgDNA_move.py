@@ -3,7 +3,7 @@
 # Author:   --<Steven Howell>
 # Purpose:  Provide structure movement using SASSIE protocols
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.35 2014-08-13 18:07:50 schowell Exp $
+# $Id: cgDNA_move.py,v 1.36 2014-08-14 19:47:39 schowell Exp $
 
 # time using FORTRAN double loop, N=1000, iters=1000 (so 1*10^6 steps): 958.887075186 seconds
 # time using python double loop, N=1000, iters=1000 (so 1*10^6 steps):
@@ -1311,8 +1311,8 @@ def main():
             l = [range(1, 3), range(519, 532), range(667, 669)]
             pro_groups =  []
             pro_groups.append(['A0', 'B0', 'C0', 'D0',
-                               'E0', 'F0', 'G0', 'H0', 
-                               'A1', 'B1', 'C1', 'D1', 
+                               'E0', 'F0', 'G0', 'H0',
+                               'A1', 'B1', 'C1', 'D1',
                                'E1', 'F1', 'G1', 'H1',
                                'M1', 'N1', 'O1', 'P1',
                                'Q1', 'R1', 'S1', 'T1'])
@@ -1339,7 +1339,7 @@ def main():
                                'Q1', 'R1', 'S1', 'T1',
                                'M0', 'N0', 'O0', 'P0',
                                'Q0', 'R0', 'S0', 'T0'])
-            
+
         elif ARGS.pdb == '1zbb_tetra_corrected.pdb':
             dna_chains = ['L', 'J']
             dna_resids.append([1, 694])
@@ -1354,6 +1354,14 @@ def main():
             pro_groups.append(['M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'])
             pro_groups.append(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'])
             pro_groups.append(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'])
+
+        elif ARGS.pdb == 'dsDNA.pdb':
+            #dummy dna file
+            dna_chains = ['A', 'B']
+            dna_resids.append([1, 30]) # DNA base pairing
+            dna_resids.append([30, 1]) # DNA base pairing
+            l = [range(1, 30)]
+            pro_groups = []
 
         elif ARGS.pdb == 'dna.pdb':
             #dummy dna file
@@ -1518,8 +1526,8 @@ def main():
         os.system("mkdir "+dir_out)
         os.system("mv cgDNA.dcd " + dir_out)  # created within dna_mc
         os.system("mv cgPro.dcd " + dir_out)  # created within dna_mc
-        os.system("mv aaDNA.dcd " + dir_out)  # conditionally created within main 
-        os.system("mv aaPro.dcd " + dir_out)  # conditionally created within main 
+        os.system("mv aaDNA.dcd " + dir_out)  # conditionally created within main
+        os.system("mv aaPro.dcd " + dir_out)  # conditionally created within main
         os.system("mv aaPro.pdb " + dir_out)  # cretead within make_cg_model
         os.system("mv cgPro.pdb " + dir_out)  # cretead within make_cg_model
         os.system("mv aaDNA.pdb " + dir_out)  # cretead within make_cg_model
