@@ -1,111 +1,30 @@
+#!/usr/bin/env python
 #!/share/apps/bin/python
-# /usr/bin/evn python
 # Author:   --<Steven Howell>
-# Purpose:  Provide structure movement using SASSIE protocols
+# Purpose:  Generate modified DNA or DNA-protein structures
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.38 2014-08-22 18:05:12 schowell Exp $
+# $Id: cgDNA_move.py,v 1.39 2014-09-02 12:34:07 schowell Exp $
 
 #0000000011111111112222222222333333333344444444445555555555666666666677777777778
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
 
-import sassie.sasmol.sasmol as sasmol, numpy as np, os.path as op
-import string, os, locale, sys, random, subprocess, group_rotation, logging
-import warnings, time
-import os.path as op
-# import sys ; sys.path.append('./')
-# import sys ; sys.path.append('/home/schowell/Copy/code/pylib/sassie/')
-import collision
-# import collision32 as collision
-# import collision64 as collision
+import sassie.sasmol.sasmol as sasmol, numpy as np
+import collision, random, warnings, time
 
-LOGGER = logging.getLogger(__name__) #add module name manually
+''' modules I had imported once but no longer need (hopefully)'''
+# import os.path as op
+# import string
+# import os
+# import locale
+# import subprocess
+# import sys ; sys.path.append('./')
 
 class MainError(Exception):
     pass
 
-def write_xyz(filename, coor, comment, frame):
-
-    natoms=len(coor)
-    if(frame==0):
-        outfile=open(filename, 'w')
-    else:
-        outfile=open(filename, 'a')
-
-    outfile.write("%i\n" % natoms)
-    outfile.write('%s\t%s\n' % ('B', str(comment)))
-    for i in range(natoms):
-        outfile.write('%s\t%f\t%f\t%f\n' % ('C', coor[i][0], coor[i][1],
-                                            coor[i][2]))
-    outfile.close()
-
-    return
-
-
-def make_bead_model(all_atom_pdb):
+def make_cg_model(ARGS, all_atom_pdb, dna_segnames, dna_resids, l, pro_groups):
     '''
-    this function creates a bead model from DNA
-    this is the original function created by JC
-    make_model will replace this by taking specific DNA to coarse grain as input
-    '''
-    aa_dna = sasmol.SasMol(0)
-    aa_dna.read_pdb(all_atom_pdb)
-    natoms = aa_dna.natoms()
-
-    # print 'natoms = ', natoms
-
-    cg_dna = sasmol.SasMol(0)
-    basis_filter = ("(resname[i] == 'ADE' or resname[i] == 'GUA') and "
-                    "(name[i] == 'N1' and (resid[i] < 21) "
-                    "and segname[i]=='DNA1')")
-    error, mask = aa_dna.get_subset_mask(basis_filter)
-
-    frame = 0
-    error = aa_dna.copy_molecule_using_mask(cg_dna, mask, frame)
-    error, coor=aa_dna.get_coor_using_mask(frame, mask)
-
-    cg_dna.setCoor(coor)
-
-    diameter = 6.0*3.4
-
-    cg_natoms = cg_dna.natoms()
-    #        print 'cg_natoms = ', cg_natoms
-    new_coor = np.zeros((1, cg_natoms, 3), np.float)
-    #        print new_coor
-
-    for i in xrange(cg_natoms):
-        #                print "i = ", i
-        new_coor[0][i][2] = i*diameter
-
-    cg_dna.setCoor(new_coor)
-
-    index = cg_dna.index()
-
-    infile=open('dum.pdb', 'w')
-    for i in xrange(cg_dna.natoms()):
-        this_index = index[i]
-
-        sx = cg_dna._coor[frame, i, 0]#[:8]
-        sy = cg_dna._coor[frame, i, 1]#[:8]
-        sz = cg_dna._coor[frame, i, 2]#[:8]
-
-        infile.write(("%-6s%5s %-4s%1s%-4s%1s%4s%1s   %8s%8s%8s%6s%6s      "
-            "%-4s%2s%2s\n") % (cg_dna.atom()[i], this_index, cg_dna.name()[i],
-            cg_dna.loc()[i], cg_dna.resname()[i], cg_dna.chain()[i],
-            cg_dna.resid()[i], cg_dna.rescode()[i], sx, sy, sz,
-            cg_dna.occupancy()[i], cg_dna.beta()[i], cg_dna.segname()[i],
-            cg_dna.element()[i], cg_dna.charge()[i]))
-
-    infile.write('END\n')
-    infile.close()
-    os.remove('dum.pdb') # remove the temporary pdb file
-
-    cg_dna.write_pdb("cg_test.pdb", frame, 'w')
-
-    return cg_dna
-
-def make_cg_model(ARGS, all_atom_pdb, dna_chains, dna_resids, l, pro_groups):
-    '''
-    this function creates a cg bead model from DNA chains supplied as input
+    this function creates a cg bead model from DNA strands supplied as input
     make_cgDNA_model takes specific DNA to coarse grain as input
     '''
 
@@ -117,13 +36,13 @@ def make_cg_model(ARGS, all_atom_pdb, dna_chains, dna_resids, l, pro_groups):
     frame = 0
 
     #~~~ DNA ONLY SECTION ~~~#
-    chain1 = dna_chains[0]
-    chain2 = dna_chains[1]
+    dna1 = dna_segnames[0]
+    dna2 = dna_segnames[1]
     resid1 = dna_resids[0]
     resid2 = dna_resids[1]
     # check the input
     assert np.abs(resid1[1]-resid1[0]) == np.abs(resid2[1]-resid2[0]), (
-        "number of paired bases in chains are not the same")
+        "number of paired bases in DNA strands are not the same")
 
     bps = np.abs(resid1[1]-resid1[0])+1
     nbeads = int(np.round(bps/float(ARGS.bp_per_bead)))
@@ -131,38 +50,34 @@ def make_cg_model(ARGS, all_atom_pdb, dna_chains, dna_resids, l, pro_groups):
 
     # load the dna into its own sasmol object
     aa_dna = sasmol.SasMol(0)
-    dna_mask = '((moltype[i] == "dna" or moltype[i] == "rna"))' # RNA problem
-    error, mask = aa_all.get_subset_mask(dna_mask)
-    aa_dna_mask = mask
-    error = aa_all.copy_molecule_using_mask(aa_dna, mask, frame) # select dna
-    #s if all_files:
-    #s     aa_dna.write_pdb("aaDNA.pdb", frame, 'w')
+    dna_filter = '((moltype[i] == "dna" or moltype[i] == "rna"))' # RNA problem
+    error, aa_dna_mask = aa_all.get_subset_mask(dna_filter)
+    error = aa_all.copy_molecule_using_mask(aa_dna, aa_dna_mask, frame) # select dna
     natomsD = aa_dna.natoms()
     print 'dna atoms = ', natomsD
 
-    # populate the cg_dna sasmol object with atom properties
+    # populate the cg_dna sasmol object with semi-arbitrary atom properties
     cg_dna = sasmol.SasMol(0)
     basis_filter = ("((name[i] == 'N1') and (resid[i] <= "+str(nbeads)+") and "
-                    "(chain[i] == '"+chain1+"'))")
+                    "(segname[i] == '"+dna1+"'))")
     error, mask = aa_dna.get_subset_mask(basis_filter)   #; print mask
     s = np.sum(mask)
-    assert s == nbeads, ("\n>>> ERROR!!! wrong number of beads created: "
-                         "expected %d but found %d\n") %(nbeads, s)
-
+    assert s == nbeads, ("\n>>> ERROR!!! fail to creat correct number of dummy "
+                         "beads: expected %d but made %d\n") %(nbeads, s)
     error = aa_dna.copy_molecule_using_mask(cg_dna, mask, frame)
-    cg_coor = np.zeros((1, nbeads, 3)) # coordinates of the beads
 
+    # initialize bead coordinates and other variables
+    cg_coor = np.zeros((1, nbeads, 3))
     r1a = resid1[0]
     r2a = resid2[0]
-    all_beads = []            # the all atom sasmol objects for each bead
-    dna_bead_masks = []       # the all atom masks
+    all_beads = []       # list of the all atom sasmol object for each bead
+    dna_bead_masks = []  # list of the all atom masks for each bead
     link = np.zeros((nbeads-1, 2), dtype=int)  # links between DNA beads
     # if a bead is designated flexible both it's links are flexible
 
-    # to make flexid1 an array of the indices of flexible residues
+    # create an array (groupid) labeling the group for each flexible cg-DNA bead
     flexResids = [item for sublist in l for item in sublist]
     groupid = np.zeros(len(flexResids))
-    # groupid = np.zeros(sum(len(x) for x in l))
     n_start = 0
     for i in xrange(len(l)):
         n_end = len(l[i]) + n_start
@@ -178,29 +93,29 @@ def make_cg_model(ARGS, all_atom_pdb, dna_chains, dna_resids, l, pro_groups):
 
         bead = sasmol.SasMol(0)
 
-        # Get the atoms from DNA chain 1
+        # Get the atoms from DNA strand 1
         if resid1[0] < resid1[1]:
             r1b = r1a + ARGS.bp_per_bead  # r1b > r1a
             basis_filter1 = ("((resid[i] > "+str(r1a-1)+" and "
                              "resid[i] < "+str(r1b)+") and "
-                             "(chain[i]=='"+chain1+"')) or ")
+                             "(segname[i]=='"+dna1+"')) or ")
         else:
             r1b = r1a - ARGS.bp_per_bead  # r1b < r1a
             basis_filter1 = ("((resid[i] > "+str(r1b)+" and "
                              "resid[i] < "+str(r1a+1)+") and "
-                             "(chain[i]=='"+chain1+"')) or ")
+                             "(segname[i]=='"+dna1+"')) or ")
 
-        # Get the atoms from DNA chain 2
+        # Get the atoms from DNA strand 2
         if resid2[0] < resid2[1]:
             r2b = r2a + ARGS.bp_per_bead  # r2b > r2a
             basis_filter2 = ("((resid[i] > "+str(r2a-1)+" and "
                              "resid[i] < "+str(r2b)+") and "
-                             "(chain[i]=='"+chain2+"'))")
+                             "(segname[i]=='"+dna2+"'))")
         else:
             r2b = r2a - ARGS.bp_per_bead   # r2b < r2a
             basis_filter2 = ("((resid[i] > "+str(r2b)+" and "
                              "resid[i] < "+str(r2a+1)+") and "
-                             "(chain[i]=='"+chain2+"'))")
+                             "(segname[i]=='"+dna2+"'))")
 
         basis_filter = basis_filter1+basis_filter2
 
@@ -221,7 +136,7 @@ def make_cg_model(ARGS, all_atom_pdb, dna_chains, dna_resids, l, pro_groups):
         bead.center(0)
         all_beads.append(bead)
 
-        # check residues from chain 1 to see if this is a flexible bead
+        # check residues from DNA strand 1 to see if this is a flexible bead
         for i in xrange(r1a, r1b):
             if i in flexResids[:, 0]:
                 (r, c) = np.where(flexResids==i)
@@ -239,8 +154,7 @@ def make_cg_model(ARGS, all_atom_pdb, dna_chains, dna_resids, l, pro_groups):
         r1a = r1b
         r2a = r2b
 
-    # set the bead coordinates to the calculated com coordinates
-    #s print 'cg_coor = \n', cg_coor
+    # position the bead at its calculated com
     beadgroups = np.zeros(len(link[:, 1])+1, dtype=int)
     beadgroups[1:] = link[:, 1]
     # need a trial bead for every flexible link (0th bead will never move)
@@ -258,9 +172,6 @@ def make_cg_model(ARGS, all_atom_pdb, dna_chains, dna_resids, l, pro_groups):
     # print cg_dna._coor[frame, :, 0]
     cg_dna.setCoor(cg_coor)  #; print cg_dna._coor[frame, :, 0]
 
-    #if all_files:
-        #cg_dna.write_pdb("cgDNA.pdb", frame, 'w')
-
     vecXYZ = np.zeros((3, nbeads, 3))
     vecXYZ[0] = [1, 0, 0]
     vecXYZ[1] = [0, 1, 0]
@@ -273,45 +184,45 @@ def make_cg_model(ARGS, all_atom_pdb, dna_chains, dna_resids, l, pro_groups):
     error, mask = aa_all.get_subset_mask('((moltype[i] == "protein"))')
     aa_pro_mask = mask
     error = aa_all.copy_molecule_using_mask(aa_pro, mask, frame)
-    #s if all_files:
-    #s     aa_pro.write_pdb("aaPro.pdb", frame, 'w')
     print 'protein atoms = ', aa_pro.natoms()
 
     # coarse-grain the proteins
     print "coarse-graining the protein, this may take awhile..."
     cg_pro = sasmol.SasMol(0)
-    error, mask = aa_pro.get_subset_mask("(name[i] == 'CA')")
-    error = aa_pro.copy_molecule_using_mask(cg_pro, mask, frame)
-
-    #s if all_files:
-    #s     cg_pro.write_pdb("cgPro.pdb", frame, 'w')
+    error, aa2cg_pro_mask = aa_pro.get_subset_mask("(name[i] == 'CA')")
+    error = aa_pro.copy_molecule_using_mask(cg_pro, aa2cg_pro_mask, frame)
 
     # get the masks for the move groups and each group of all atom proteins
     cg_pgroup_masks = []  # masks to separate the cg_protein into NCP groups
     aa_pgroup_masks = []  # masks to separate the aa_protein into NCP groups
-    aa2cg_pgroup_masks = []  # masks to get the CA atoms from the aa
+    #s aa2cg_pgroup_masks = []  # masks to get the CA atoms from the aa
     all_proteins = []
 
-    # after using psfgen, identicle proteins end up with the same chain
-    # but different segname (this creates problems for non-unique segname)
-    # (pre, post, btwn) = ("((chain[i]=='", "'))", " or ")
     (pre, post, btwn) = ("((segname[i]=='", "'))", " or ")
 
     for group in pro_groups:
-        basis_filter = ""
-        for chain in group:
-            basis_filter += pre + chain + post + btwn
-        basis_filter = basis_filter[0:-4]  # remove the last btwn
-        error, mask = cg_pro.get_subset_mask(basis_filter)
-        cg_pgroup_masks.append(mask)
-
         aa_pro_group = sasmol.SasMol(0)
-        error, mask = aa_pro.get_subset_mask(basis_filter)
-        aa_pgroup_masks.append(mask)
-        error = aa_pro.copy_molecule_using_mask(aa_pro_group, mask, frame)
+        if len(group) > 0:
+            basis_filter = ""
+            for seg in group:
+                basis_filter += pre + seg + post + btwn
+            basis_filter = basis_filter[0:-4]  # remove the last btwn
+            error, cg_pgroup_mask = cg_pro.get_subset_mask(basis_filter)
+            error, aa_pgroup_mask = aa_pro.get_subset_mask(basis_filter)
+            error = aa_pro.copy_molecule_using_mask(aa_pro_group,
+                                                    aa_pgroup_mask, frame)
+        else:
+            cg_pgroup_mask = np.zeros(sum(aa2cg_pro_mask), dtype='int32')
+            aa_pgroup_mask = np.zeros(len(aa2cg_pro_mask), dtype='int32')
+
+        cg_pgroup_masks.append(cg_pgroup_mask)
+        aa_pgroup_masks.append(aa_pgroup_mask)
         all_proteins.append(aa_pro_group)
+
+        ''' don't think these two lines are needed:
         error, mask = aa_pro_group.get_subset_mask("(name[i] == 'CA')")
         aa2cg_pgroup_masks.append(mask)
+        '''
 
     # combined the protein groups into move groups
     move_masks = []
@@ -331,38 +242,38 @@ def make_cg_model(ARGS, all_atom_pdb, dna_chains, dna_resids, l, pro_groups):
             trialbeads, beadgroups, dna_bead_masks, aa_pgroup_masks, move_masks,
             cg_pgroup_masks, aa_all, aa_dna_mask, aa_pro_mask)
 
-
 def recover_aaPro_model(aa_pgroup_masks, cg_pgroup_masks, cg_pro, all_proteins,
                         aa_pro):
     """
     Recover the all-atom representation of coarse-grained proteins
     """
     for (i, mask) in enumerate(aa_pgroup_masks):
-        # define a temporary sasmol object for the final cg protein group
-        cg_pro_group_final = sasmol.SasMol(0)
-        error = cg_pro.copy_molecule_using_mask(cg_pro_group_final,
-                                                cg_pgroup_masks[i], 0)
+        if sum(mask) > 0:
+            # define a temporary sasmol object for the final cg protein group
+            cg_pro_group_final = sasmol.SasMol(0)
+            error = cg_pro.copy_molecule_using_mask(cg_pro_group_final,
+                                                    cg_pgroup_masks[i], 0)
 
-        # get the sub_1 inputs for the align function
-        com_sub_1 = cg_pro_group_final.calccom(0)
-        cg_pro_group_final.center(0)
-        coor_sub_1 = cg_pro_group_final.coor()[0]
+            # get the sub_1 inputs for the align function
+            com_sub_1 = cg_pro_group_final.calccom(0)
+            cg_pro_group_final.center(0)
+            coor_sub_1 = cg_pro_group_final.coor()[0]
 
-        all_proteins[i].center(0)
-        # define a temporary sasmol object for the original cg protein group
-        cg_pro_group_orig = sasmol.SasMol(0)
-        error, aa2cg_mask = all_proteins[i].get_subset_mask(
-            "(name[i] == 'CA')")
-        error = all_proteins[i].copy_molecule_using_mask(cg_pro_group_orig,
-                                                         aa2cg_mask, 0)
-        # get the sub_2 inputs for the align function
-        com_sub_2 = cg_pro_group_orig.calccom(0)
-        cg_pro_group_orig.center(0)
-        coor_sub_2 = cg_pro_group_orig.coor()[0]
+            all_proteins[i].center(0)
+            # define a temporary sasmol object for the original cg protein group
+            cg_pro_group_orig = sasmol.SasMol(0)
+            error, aa2cg_mask = all_proteins[i].get_subset_mask(
+                "(name[i] == 'CA')")
+            error = all_proteins[i].copy_molecule_using_mask(cg_pro_group_orig,
+                                                             aa2cg_mask, 0)
+            # get the sub_2 inputs for the align function
+            com_sub_2 = cg_pro_group_orig.calccom(0)
+            cg_pro_group_orig.center(0)
+            coor_sub_2 = cg_pro_group_orig.coor()[0]
 
-        all_proteins[i].align(0, coor_sub_2, com_sub_2,
-                              coor_sub_1, com_sub_1)
-        error = aa_pro.set_coor_using_mask(all_proteins[i], 0, mask)
+            all_proteins[i].align(0, coor_sub_2, com_sub_2,
+                                  coor_sub_1, com_sub_1)
+            error = aa_pro.set_coor_using_mask(all_proteins[i], 0, mask)
 
 def recover_aaDNA_model(cg_dna, aa_dna, vecXYZ, allBeads, masks):
     """
@@ -452,7 +363,6 @@ def rotate4x4(axis, theta):
 
     return R
 
-
 def move2origin(coor4):
     T    = np.eye(4, dtype=np.float)
     Ti   = np.copy(T)
@@ -503,7 +413,6 @@ def align2z(coor4):
         print 'no point to align'
         #s A = np.dot(Axz, Az) #;   print 'A3=\n', A
     return A
-
 
 def beadRotate(coor3, vecXYZ, thetas, n_soft, p_coor3):
     '''
@@ -629,8 +538,9 @@ def beadRotate(coor3, vecXYZ, thetas, n_soft, p_coor3):
 def checkU(coor):
     '''
     module to generate and check the u-vectors pointing from bead to bead
-    makes sure they are all the same length
-    returns the u-vectors and their magnitude (l)
+    (used to make sure they were are all the same length but this did not work
+    with real coarse-grained DNA)
+    returns the u-vectors and their average magnitude (l)
     '''
     erLim = 1e-3
     (r, c) = coor.shape
@@ -645,6 +555,8 @@ def checkU(coor):
     #print '\n\n'
 
     test = np.abs(lu-l) > erLim  # check if any of the l-lengths are different
+    # Commented this out because it did not work for real DNA because base pairs
+    # did not always start evenly spaced apart
     #s if test.any():
     #s         print 'ERROR: the beads are not uniformly spaced'
     #s         print 'u = \n', u
@@ -653,27 +565,6 @@ def checkU(coor):
     #s         print 'distance = ', lu
 
     return (u, l)
-
-def checkMag(vec):
-    '''
-    module to check that the magnitude of all vectors is the same
-    '''
-    erLim = 1e-3
-    (r, c) = vec.shape
-    m = np.zeros(r)
-    for i in xrange(r):
-        m[i] = mag(vec[i])
-
-    avMag = np.mean(m)
-    test = np.abs(m-avMag) > erLim  # check for differences in l-lengths
-    if test.any():
-        print 'ERROR: the vectors do not have uniformly magnitude'
-        print 'm = \n', m
-        print test
-        # print 'difference = ', u[:, 2] - l
-        print 'vec = ', vec
-
-    return (avMag)
 
 def energyBend(lpl, u, l):
     '''
@@ -717,248 +608,6 @@ def p_energy_wca(w, coor, wca0, trial_bead):
     #s print 'U_wca =', res*4
     return (res, wca1)
 
-def p_energy_wca_mixed(w_d, coor_d, wca0_d, trial_bead, w_p, coor_p,
-                       wca0_p, group_mask_p, wca0_dp):
-    '''
-    this function finds the Weeks-Chandler-Anderson repulsion E/kt for N
-    beads connected by N-1 rods together representing a worm-like chain.
-    w is the effective width of the chain
-    coor contains the xyz-coordinates of the beads
-    '''
-    w_dp = np.mean([w_d, w_p])
-
-    wca1_d = np.copy(wca0_d)
-    wca1_dp = np.copy(wca0_dp)
-    wca1_p = np.copy(wca0_p)
-
-    test_d = 2.**(1./6.)*w_d
-    test_p = 2.**(1./6.)*w_p
-    test_dp = 2.**(1./6.)*w_dp
-
-    (N_d, col) = coor_d.shape
-    (N_p, col) = coor_p.shape
-
-    # calculate the distance between moved DNA beads and all other DNA beads
-    for i in xrange(trial_bead, N_d):    # only calculate changed distances
-        ri = coor_d[i, :]                # get ith bead's coordinates
-        for j in xrange(i):
-            rj = coor_d[j, :]            # get the coordinates for the jth bead
-            # calculate the distance between the ith and jth beads
-            rij = np.sqrt((ri[0]-rj[0])**2. +
-                          (ri[1]-rj[1])**2. +
-                          (ri[2]-rj[2])**2.)
-            if rij < test_d:
-                wca1_d[i, j] = (w_d/rij)**12.-(w_d/rij)**6.+0.25
-
-    # calculate the distance between DNA beads and proteins
-    for i in xrange(N_d):
-        ri = coor_d[i, :]
-        for j in xrange(N_p):
-            rj = coor_p[j, :]
-            # get the distance between the ith DNA and jth protein beads
-            rij = np.sqrt((ri[0]-rj[0])**2. +
-                          (ri[1]-rj[1])**2. +
-                          (ri[2]-rj[2])**2.)
-            if rij < test_dp:
-                wca1_dp[i, j] = (w_dp/rij)**12.-(w_dp/rij)**6.+0.25
-
-    # calculate the distance between proteins and proteins
-    for i in xrange(N_p):
-        ri = coor_p[i, :]
-        for j in xrange(i):
-            rj = coor_p[j, :]
-            # get the distance between the ith DNA and jth protein beads
-            rij = np.sqrt((ri[0]-rj[0])**2. +
-                          (ri[1]-rj[1])**2. +
-                          (ri[2]-rj[2])**2.)
-            if rij < test_p:
-                wca1_p[i, j] = (w_p/rij)**12.-(w_p/rij)**6.+0.25
-
-    res_d = 4 * np.sum(wca1_d)
-    res_p = 4 * np.sum(wca1_p)
-    res_dp = 4 * np.sum(wca1_dp)
-
-    res = res_d + res_p + res_dp
-    return (res, wca1_d, wca1_p, wca1_dp)
-
-def p_energy_wca_mixed_fast(w_d, coor_d, wca0_d, trial_bead, w_p, coor_p,
-                             wca0_p, group_mask_p, wca0_dp, initial=False):
-    '''
-    this function finds the Weeks-Chandler-Anderson repulsion E/kt for N
-    beads connected by N-1 rods together representing a worm-like chain.
-    w is the effective width of the chain
-    coor contains the xyz-coordinates of the beads
-
-    this method skips unnecessary distances, (compared to the longer method,
-    the only difference in result could be attributed to float error)
-    '''
-    w_dp = np.mean([w_d, w_p])
-
-    wca1_d = np.copy(wca0_d)
-    wca1_dp = np.copy(wca0_dp)
-    wca1_p = np.copy(wca0_p)
-
-    test_d = 2.**(1./6.)*w_d
-    test_p = 2.**(1./6.)*w_p
-    test_dp = 2.**(1./6.)*w_dp
-
-    (N_d, col) = coor_d.shape
-    (N_p, col) = coor_p.shape
-
-    # calculate the distance between moved DNA beads and all other DNA beads
-    for i in xrange(trial_bead, N_d):    # only calculate changed distances
-        ri = coor_d[i, :]                # get ith bead's coordinates
-        for j in xrange(i):
-            rj = coor_d[j, :]            # get the coordinates for the jth bead
-            # calculate the distance between the ith and jth beads
-            rij = np.sqrt((ri[0]-rj[0])**2. +
-                          (ri[1]-rj[1])**2. +
-                          (ri[2]-rj[2])**2.)
-            if rij < test_d:
-                wca1_d[i, j] = (w_d/rij)**12.-(w_d/rij)**6.+0.25
-
-    # get the indices of the moved and stationary proteins
-    ind_moved_p = mask2ind(group_mask_p)
-    ind_stationary_p = mask2ind(-(group_mask_p-1))
-
-    if initial:
-        for i in xrange(N_d):           # all the DNA
-            ri = coor_d[i, :]           # get ith bead's coordinates
-            for j in xrange(N_p):       # all the protein
-                rj = coor_p[j, :]
-                # get the distance between the ith DNA and jth protein beads
-                rij = np.sqrt((ri[0]-rj[0])**2. +
-                              (ri[1]-rj[1])**2. +
-                              (ri[2]-rj[2])**2.)
-                if rij < test_dp:
-                    wca1_dp[i, j] = (w_dp/rij)**12.-(w_dp/rij)**6.+0.25
-        for i in xrange(N_p):
-            ri = coor_p[i, :]
-            for j in xrange(i):
-                rj = coor_p[j, :]
-                # get the distance between the ith DNA and jth protein beads
-                rij = np.sqrt((ri[0]-rj[0])**2. +
-                              (ri[1]-rj[1])**2. +
-                              (ri[2]-rj[2])**2.)
-                if rij < test_p:
-                    wca1_p[i, j] = (w_p/rij)**12.-(w_p/rij)**6.+0.25
-    else:
-        # calculate the distance between moved DNA and stationary proteins
-        if len(ind_stationary_p) > 0:
-            for i in xrange(trial_bead, N_d): # only the DNA that moved
-                ri = coor_d[i, :]             # get ith bead's coordinates
-                for j in ind_stationary_p:    # only the stationary proteins
-                    rj = coor_p[j, :]
-                    # get distance between the ith DNA and jth protein beads
-                    rij = np.sqrt((ri[0]-rj[0])**2. +
-                                  (ri[1]-rj[1])**2. +
-                                  (ri[2]-rj[2])**2.)
-                    if rij < test_dp:
-                        wca1_dp[i, j] = (w_dp/rij)**12.-(w_dp/rij)**6.+0.25
-        # calculate the distance between stationary DNA and moved proteins
-        if len(ind_moved_p) > 0:
-            for i in xrange(trial_bead): # only want the DNA that did not move
-                ri = coor_d[i, :]        # get ith bead's coordinates
-                for j in ind_moved_p:    # only want stationary proteins
-                    rj = coor_p[j, :]
-                    # get distance between the ith DNA and jth protein beads
-                    rij = np.sqrt((ri[0]-rj[0])**2. +
-                                  (ri[1]-rj[1])**2. +
-                                  (ri[2]-rj[2])**2.)
-                    if rij < test_dp:
-                        wca1_dp[i, j] = (w_dp/rij)**12.-(w_dp/rij)**6.+0.25
-
-        # calculate the distance between moved proteins and stationary proteins
-        if len(ind_moved_p) > 0 and len(ind_stationary_p) > 0:
-            for i in ind_moved_p:
-                ri = coor_p[i, :]
-                for j in ind_stationary_p:
-                    rj = coor_p[j, :]
-                    # get distance between the ith DNA and jth protein beads
-                    rij = np.sqrt((ri[0]-rj[0])**2. +
-                                  (ri[1]-rj[1])**2. +
-                                  (ri[2]-rj[2])**2.)
-                    if rij < test_p:
-                        wca1_p[i, j] = (w_p/rij)**12.-(w_p/rij)**6.+0.25
-
-    res_p = 4 * np.sum(wca1_p)
-    res_d = 4 * np.sum(wca1_d)
-    res_dp = 4 * np.sum(wca1_dp)
-
-    res = res_d + res_p + res_dp
-    return (res, wca1_d, wca1_p, wca1_dp)
-
-def f_energy_wca_mixed(w_d, coor_d, wca0_d, trial_bead0, w_p, coor_p, wca0_p,
-                     group_mask_p, wca0_dp, initial=False):
-    '''
-    this function finds the Weeks-Chandler-Anderson repulsion E/kt for N
-    beads connected by N-1 rods together representing a worm-like chain.
-    w is the effective width of the chain
-    coor contains the xyz-coordinates of the beads
-    and does all this using FORTRAN
-
-    this method skips unnecessary distances, compared to other method,
-    difference in results could be attributed to float error
-    '''
-    #import sys ;
-    #sys.path.append('./')
-    #sys.path.append('/home/schowell/Dropbox/gw_phd/code/pylib/sassie/')
-
-    w_dp = np.mean([w_d, w_p])
-    wca1_d = np.copy(wca0_d)
-    wca1_dp = np.copy(wca0_dp)
-    wca1_p = np.copy(wca0_p)
-
-    (N_d, col) = coor_d.shape
-    (N_p, col) = coor_p.shape
-
-    # get the indices of the moved and stationary proteins
-    ind_moved_p = mask2ind(group_mask_p)
-    ind_stationary_p = mask2ind(-(group_mask_p-1))
-    if len(ind_moved_p):
-        imoved0 = np.min(ind_moved_p)
-    else:
-        imoved0 = len(ind_stationary_p) - 1
-    imoved1 = imoved0 + 1
-    trial_bead1 = trial_bead0 + 1
-
-    # calculate the distance between moved DNA beads and all other DNA beads
-    wca1_d = collision.wca_d(coor_d, trial_bead1, w_d, wca1_d)
-    # trial bead index will begin at 1 instead of 0
-
-    res_d = 4.*np.sum(wca1_d)
-
-    if initial:
-        wca1_p = collision.wca_d(coor_p, 1, w_p, wca1_p)
-        res_p = 4 * np.sum(wca1_p)
-
-        wca1_dp = collision.wca_nbym(coor_d, coor_p, 1, N_d, 1, N_p, w_dp,
-                                     wca1_dp)
-        res_dp = 4 * np.sum(wca1_dp)
-
-    else:
-        # calculate the distance between moved proteins and stationary proteins
-        if len(ind_moved_p) > 0 and len(ind_stationary_p) > 0:
-            wca1_p = collision.wca_nbyn(coor_p, imoved1, N_p, 1, imoved0, w_p,
-                        wca1_p) # trial bead index will begin at 1 instead of 0
-        res_p = 4 * np.sum(wca1_p)
-
-        # calculate the distance between moved DNA and stationary proteins
-        if len(ind_stationary_p) > 0:
-            wca1_dp = collision.wca_nbym(coor_d, coor_p, trial_bead1, N_d, 1,
-                        imoved0, w_dp, wca1_dp)
-        # calculate the distance between stationary DNA and moved proteins
-        if len(ind_moved_p) > 0:
-            wca1_dp = collision.wca_nbym(coor_d, coor_p, 0, trial_bead0,
-                        imoved1, N_p, w_dp, wca1_dp)
-        res_dp = 4 * np.sum(wca1_dp)
-
-    # FIX THIS:
-    #s res = res_d + res_p + res_dp # res_dp is too high
-
-    res = res_d + res_p # leave out DNA-protein interaction energy
-    return (res, wca1_d, wca1_p, wca1_dp)
-
 def f_energy_wca(w, coor, wca0, trial_bead):
     '''
     this function finds the Weeks-Chandler-Anderson repulsion E/kt for N
@@ -977,6 +626,27 @@ def f_energy_wca(w, coor, wca0, trial_bead):
     #s print 'U_wca =', res*4
     return (res, wca1)
 
+def f_overlap1(coor, cutoff):
+    '''
+    this function checks for overlap using FORTRAN
+    '''
+    # calculate the distance between moved DNA beads and all other DNA beads
+    check = collision.overlap1(coor, cutoff)
+
+    return check
+
+def f_overlap2(coor_a, coor_b, cutoff):
+    '''
+    this function checks for overlap using FORTRAN
+    '''
+    if len(coor_a) > 0 and  len(coor_b) > 0:
+        # calculate the distance between moved DNA beads and all other DNA beads
+        check = collision.overlap2(coor_a, coor_b, cutoff)
+    else:
+        check = 0
+
+    return check
+
 def mask2ind(mask):
     '''
     convert a mask to an array of indicies
@@ -986,33 +656,10 @@ def mask2ind(mask):
 
     return mask_indices
 
-def test_wca(val1, val2, out=False):
-    if val1.shape != val2.shape:
-        print 'ERROR: val1 and val2 are not comparable'
-        return
-
-    diff = (val1 - val2)
-    per_diff = diff / val1
-    if np.any(np.isnan(per_diff)):
-        per_diff[np.isnan(per_diff)] = 0
-    sum_diff = np.sum(per_diff)
-    max_diff = np.max(np.abs(per_diff))
-
-    print 'val1:\n', val1
-    print 'val2:\n', val2
-    print 'difference:\n', diff
-    print 'percent difference:\n', per_diff
-    print 'total percent difference:\n', sum_diff
-    print 'maximum percent difference:\n', max_diff
-
-    if out:
-        return (per_diff, max_diff, diff)
-
-    return ''
-
 def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
            beadgroups, group_masks, all_beads, dna_bead_masks, aa_pgroup_masks,
-           cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask):
+           cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask,
+           dna_type='b'):
     '''
     this function perform nsteps Monte-Carlo moves on the cg_dna
     '''
@@ -1032,100 +679,88 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
     all_dcd_name = timestr + ARGS.pdb[:-4] + '.dcd'
     aa_all_dcd_out = aa_all.open_dcd_write(all_dcd_name)
 
-    #s if all_files:
-    #s     cg_dna_dcd_out = cg_dna.open_dcd_write("cgDNA.dcd")
-    #s     cg_pro_dcd_out = cg_pro.open_dcd_write("cgPro.dcd")
-
-    nbeads = cg_dna.natoms()
-    nbeads_p = cg_pro.natoms()
+    d_nbeads = cg_dna.natoms()
+    p_nbeads = cg_pro.natoms()
     nflex = trialbeads.size
     xyz = np.copy(vecXYZ)
-    coor = np.copy(cg_dna.coor()[0])
+    d_coor = np.copy(cg_dna.coor()[0])
     p_coor = np.copy(cg_pro.coor()[0])
 
-    (u, l) = checkU(coor) # vectors between beads u, and the average distance, l
+    (u, l) = checkU(d_coor) # vectors between beads u, and average distance l
     lpl = lp/l  # setup the presistence length paramater
-    w_p = w / 20.  # this is arbitrary, need to look learn more about proteins
+
+    dna_energy_width = {'a': 0, 'b': 46, 'z': 0}
+    w = dna_energy_width[dna_type.lower()]
+
+    dna_diam = {'a': 25.5, 'b': 23.7, 'z': 18.4}
+    dna_bead_radius = 5.0
+
+    pro_bead_radius = 1.0 # 2A min seperation of CA atoms in database
+
+    pro_pro_test = pro_bead_radius + pro_bead_radius
+    dna_pro_test = dna_bead_radius + pro_bead_radius
 
     # calculate the energy of the starting positions
-    wca0 = np.zeros((nbeads, nbeads))
-    wca0_p = np.zeros((nbeads_p, nbeads_p))
-    wca0_dp = np.zeros((nbeads, nbeads_p))
-
+    wca0 = np.zeros((d_nbeads, d_nbeads))
     Ub0 = energyBend(lpl, u, l)
 
-    if len(group_masks) > 0:
-        if ARGS.f_collide:
-            (Uwca0, wca0, wca0_p, wca0_dp) = f_energy_wca_mixed(w, coor,
-                wca0, 0, w_p, p_coor, wca0_p, group_masks[1], wca0_dp, True)
-        else:
-            (Uwca0, wca0, wca0_p, wca0_dp) = p_energy_wca_mixed_fast(w, coor,
-                wca0, 0, w_p, p_coor, wca0_p, group_masks[1], wca0_dp, True)
+    if ARGS.f_collide:
+        (Uwca0, wca0) = f_energy_wca(w, d_coor, wca0, 0)
     else:
-        wca0_p = wca0_dp = 0
-        if ARGS.f_collide:
-            (Uwca0, wca0) = f_energy_wca(w, coor, wca0, 0)
-        else:
-            (Uwca0, wca0) = p_energy_wca(w, coor, wca0, 0)
+        (Uwca0, wca0) = p_energy_wca(w, d_coor, wca0, 0)
 
     U_T0 = Ub0 + Uwca0
-    #s wca1 = np.copy(wca0)
 
-    n_a = 0 # times configuration was accepted
-    n_r = 0 # times configuration was rejected
+    n_accept = 0 # times configuration was accepted
+    n_reject = 0 # times configuration was rejected
+    n_writen = 0 # times dcd write has been called
 
-    while n_a < ARGS.nsteps:
+    assert np.size(ARGS.theta_max) - 1 == beadgroups[-1], (
+        'each group needs its own theta_max: %d != %d'
+        % (np.size(ARGS.theta_max - 1), beadgroups[-1]))
+
+    # Main MC loop #
+    while n_accept < ARGS.nsteps:
 
         trial_bead = trialbeads[int((nflex)*random.random())]
-        print "trial_bead(%d) = %d" % (n_a, trial_bead)
+        print "trial_bead(%d) = %d" % (n_accept, trial_bead)
         # trial_bead = trialbeads[i%len(trialbeads)]
 
-        thetaZ_max = np.float(ARGS.theta_max)  # this should be something small
-        thetaX = ARGS.theta_max * random.random() - ARGS.theta_max/2
-        thetaY = ARGS.theta_max * random.random() - ARGS.theta_max/2
-        thetaZ = thetaZ_max * random.random() - thetaZ_max/2
+        theta_max = ARGS.theta_max[beadgroups[trial_bead]]
+        thetaZ_max = np.float(theta_max) # scale thetaZ separatly here
+        thetaZ = 2 * thetaZ_max * random.random() - thetaZ_max
+        thetaX = 2 * theta_max * random.random() - theta_max
+        thetaY = 2 * theta_max * random.random() - theta_max
         thetaXYZ = [thetaX/ARGS.n_soft, thetaY/ARGS.n_soft, thetaZ/ARGS.n_soft]
 
-        if len(group_masks) > 0:
-            # get the protein coordinates for the group that will be transformed
-            if beadgroups[trial_bead] == len(group_masks):
-                p_coor_rot = np.zeros((1, 1, 3))
-                p_mask = np.zeros(len(group_masks[0]))
-            else:
-                p_mask = group_masks[beadgroups[trial_bead]]
-                p_indices = mask2ind(p_mask)
-                p_coor_rot = p_coor[p_indices]
-        else:
+        if  len(group_masks) == 0 or beadgroups[trial_bead] == len(group_masks):
+            # Only DNA will be moving, create place-holder dummy coordinates
             p_coor_rot = np.zeros((0, 3))
+        else:
+            p_mask = group_masks[beadgroups[trial_bead]]
+            p_ind_rot = mask2ind(p_mask)
+            p_ind_fix = mask2ind(-(p_mask-1))
+            p_coor_rot = p_coor[p_ind_rot]
+            p_coor_fix = p_coor[p_ind_fix]
 
-        (coor[trial_bead:], xyz[:, trial_bead:], p_coor_rot) = beadRotate(
-            coor[trial_bead-1:], xyz[:, trial_bead-1:], thetaXYZ, ARGS.n_soft,
+        (d_coor[trial_bead:], xyz[:, trial_bead:], p_coor_rot) = beadRotate(
+            d_coor[trial_bead-1:], xyz[:, trial_bead-1:], thetaXYZ, ARGS.n_soft,
             p_coor_rot) # generate a newly rotated model
 
         # store the rotated protein coordinates
         if beadgroups[trial_bead] < len(group_masks):
-            p_coor[p_indices] = p_coor_rot
+            p_coor[p_ind_rot] = p_coor_rot
 
-        # calculate the updated change in energy (dU) and boltzman factor (p)
-        (u, l) = checkU(coor)
+        # calculate the change in energy (dU) and the boltzman factor (p)
+        (u, l) = checkU(d_coor)
         Ub1 = energyBend(lpl, u, l)
 
-        if len(group_masks) > 0:
-            # ~~~~ DNA-protein ~~~~~~#
-            if ARGS.f_collide:
-                (Uwca1, wca1, wca1_p, wca1_dp) = f_energy_wca_mixed(w, coor,
-                    wca0, trial_bead, w_p, p_coor, wca0_p, p_mask, wca0_dp)
-            else:
-                (Uwca1, wca1, wca1_p, wca1_dp) = p_energy_wca_mixed_fast(w,
-                    coor, wca0, trial_bead, w_p, p_coor, wca0_p, p_mask,
-                    wca0_dp)
+        # ~~~~ DNA interaction energy  ~~~~~~#
+        if ARGS.f_collide:
+            (Uwca1, wca1) = f_energy_wca(w, d_coor, wca0, trial_bead)
         else:
-            # ~~~~ DNA only ~~~~~~#
-            wca1_p = wca1_dp = 0
-            if ARGS.f_collide:
-                (Uwca1, wca1) = f_energy_wca(w, coor, wca0, trial_bead)
-            else:
-                (Uwca1, wca1) = p_energy_wca(w, coor, wca0, trial_bead)
+            #(Uwca1, wca1) = p_energy_wca(w, d_coor, wca0, trial_bead)
+            print "python wca calculator deprecated"
 
         U_T1 =  Ub1 + Uwca1
         dU = U_T1 - U_T0
@@ -1135,34 +770,60 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
             try:
                 p = np.exp(-dU)
             except Warning:
-                print 'Warning: ~~~~~> OverflowError <~~~~~~~  dU = ', dU
                 if dU > 99:
                     p =  0
-                    print 'energy was large, setting probability to 0'
+                    #s print 'energy was large, setting probability to 0'
                 elif dU < 0:
-                    print 'energy was negative, setting probability to 1'
                     p =  1
+                    #s print 'energy was negative, setting probability to 1'
                 else:
+                    print 'Warning: ~~> unclear OverflowError <~~ dU = ', dU
                     print 'not sure where the error originated from'
 
         test = random.random()
+        collision = 0
 
-        # if True:
-        if test <= p:
-            n_a += 1                           # increment accept counter
-            cg_dna.coor()[0] = np.copy(coor)   # store the dna coordinates
-            cg_pro.coor()[0] = np.copy(p_coor)
-            vecXYZ = np.copy(xyz)              # store the dna orientations
+        if test >= p:
+            dna_pass = False
+        else:
+            dna_pass = True
+
+            # now check for collisions
+            if len(p_coor_rot) > 0:   # only if proteins were rotated
+                # ~~~~ Check for overlap, DNA-protein or protein-protein ~~~~~~#
+                d_coor_fix = d_coor[trial_bead:]
+                d_coor_rot = d_coor[:trial_bead]
+
+                # check for protein-protein overlap
+                if 1 == f_overlap2(p_coor_rot, p_coor_fix, pro_pro_test):
+                    print 'Protein-Protein'
+                    #print 'collisioin, set p=0'
+                    collision = 1
+
+                # check for DNA-protein overlap
+                elif 1 == f_overlap2(p_coor_rot, d_coor_fix, dna_pro_test):
+                    print 'Potein-DNA (rot-fix)'
+                    #print 'collision, set p=0'
+                    collision = 1
+
+                elif 1 == f_overlap2(p_coor_fix, d_coor_rot, dna_pro_test):
+                    print 'Potein-DNA (fix-rot)'
+                    #print 'collision, set p=0'
+                    collision = 1
+
+                if collision == 1:
+                    print 'failed because of collision'
+
+        if dna_pass and collision == 0:
+            n_accept += 1                      # increment accept counter
+            cg_dna.coor()[0] = np.copy(d_coor) # update dna coordinates
+            cg_pro.coor()[0] = np.copy(p_coor) # update protein coordinates
+            vecXYZ = np.copy(xyz)              # update dna orientations
             wca0 = np.copy(wca1)               # update DNA WCA energy
-            wca0_dp = np.copy(wca1_dp)         # update DNA-protein WCA energy
-            wca0_p = np.copy(wca1_p)           # update protein DCA energy
             U_T0 = U_T1                        # update total energy
-            #s if all_files:
-            #s     cg_dna.write_dcd_step(cg_dna_dcd_out, 0, 0)
-            #s     cg_pro.write_dcd_step(cg_pro_dcd_out, 0, 0)
 
             # recover an all atom representation and save coordinates to a dcd
-            if 0 == n_a % ARGS.n_dcd_write:
+            if 0 == n_accept % ARGS.n_dcd_write:
                 # ~~DNA~~
                 error = recover_aaDNA_model(cg_dna, aa_dna, vecXYZ, all_beads,
                                             dna_bead_masks)
@@ -1173,24 +834,27 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
                 aa_all.set_coor_using_mask(aa_pro, 0, aa_pro_mask)
                 aa_all.set_coor_using_mask(aa_dna, 0, aa_dna_mask)
                 # ~~Write DCD step~~
-                aa_all.write_dcd_step(aa_all_dcd_out, 0, 0)
+                n_writen += 1
+                aa_all.write_dcd_step(aa_all_dcd_out, 0, n_writen)
 
         else :
-            n_r += 1                           # increment reject counter
-            coor = np.copy(cg_dna.coor()[0])   # reset the dna coordinates
+            print 'step failed because of DNA energy'
+            n_reject += 1                           # increment reject counter
+            d_coor = np.copy(cg_dna.coor()[0])   # reset the dna coordinates
             p_coor = np.copy(cg_pro.coor()[0]) # reset the protein coordinates
             xyz = np.copy(vecXYZ)              # reset the dna orientations
 
             # save previous coordinates again
             if not ARGS.keep_unique:
                 # ~~Write DCD step~~
-                aa_all.write_dcd_step(aa_all_dcd_out, 0, 0)
+                n_writen += 1
+                aa_all.write_dcd_step(aa_all_dcd_out, 0, n_writen)
 
-    aa_all.close_dcd_write(aa_all_dcd_out)  # <---!!!this does not work!!!
+    aa_all.close_dcd_write(aa_all_dcd_out)
 
-    print "accepted %d moves" % n_a
-    print "rejected %d moves" % n_r
-    print "finished in the dna_mc module :(|)"
+    print "accepted %d moves" % n_accept
+    print "rejected %d moves" % n_reject
+    #print "finished in the dna_mc module :(|)"
 
 def makeLongDNA(n_lp):
     print 'making DNA that is %d*lp long' %n_lp
@@ -1225,59 +889,54 @@ def makeLongDNA(n_lp):
 
     return (longDNA, vecXYZ)
 
-def mag(vec):
-
-    (r, ) = vec.shape
-    sumSquares = 0.0
-    for i in xrange(r):
-        sumSquares += vec[i]**2
-
-    return np.sqrt(sumSquares)
-
-def closeAll():
-
-    for x in xrange(100):
-        plt.close()
-
 def parse():
     ''' Returns arguments in parser'''
 
     parser = argparse.ArgumentParser(
         #prog='',
         #usage='',
-        description = 'test functionality of the cgDNA move module',
+        description = 'Generate modified DNA or DNA-protein structures'
         #epilog = 'no epilog found'
     )
-    parser.add_argument("-r", "--rewind", default="0", type=int,
-        help = "number of iterations before rewinding to previous sturcture")
-    parser.add_argument("-rs", "--rstep", default="0", type=int,
-        help = "number of steps to rewind when rewinding to previous structure")
-    parser.add_argument("-nd", "--n_dcd_write", default="1", type=int,
-        help="number of step before saving a dcd step")
-    parser.add_argument("-n", "--nsteps", default="1", type=int,
-        help= ("number of Monte Carlo steps to perform"))
-    parser.add_argument("-s", "--show", action="store_true",
-        help="show a plot of the configuration after each iteration")
-    parser.add_argument("-tm", "--theta_max", default="5", type=np.float,
-        help=("max rotation angle for the x and y rotation, max z rotation is "
-              "theta_max/50") )
-    parser.add_argument("-ns", "--n_soft", default="2", type=int,
-        help=("number of bead over which to apply any rotation (i.e. soften the"
-        " bending)") )
-    parser.add_argument("-bp", "--bp_per_bead", default="3", type=int,
-        help="number of bp for each coarse-grained bead")
+    parser.add_argument("-r", "--rewind", default=0, type=int,
+        help = ("Number of iterations before rewinding to previous sturcture"
+                " -->REWIND CURRENTLY NOT YET IMPLEMENTED<--") )
+    parser.add_argument("-rs", "--rstep", default=0, type=int,
+        help = ("Number of steps to rewind when rewinding to previous structure"
+                " -->REWIND CURRENTLY NOT YET IMPLEMENTED<--") )
+    parser.add_argument("-nd", "--n_dcd_write", default=1, type=int,
+        help = ("Number of Monte Carlo steps before saving a dcd step; "
+              "default = 1"))
+    parser.add_argument("-n", "--nsteps", default=10, type=int,
+        help = ("Number of Monte Carlo steps to perform; default = 10"))
+    #    parser.add_argument("-s", "--show", action="store_true",
+    #        help="show a plot of the configuration after each iteration")
+    parser.add_argument("-tm", "--theta_max", nargs='+', type=np.float,
+        help = ("Max rotation angle for the x and y rotation; "
+                "max z scales with this paramater (curently 1x but code is "
+                "designed to allow max z to scale differently from max x and "
+                "y); default = 5"), default=5)
+    parser.add_argument("-ns", "--n_soft", default=2, type=int,
+        help = ("Number of bead over which to apply any rotation (i.e. soften "
+                "the bending); default = 2") )
+    parser.add_argument("-bp", "--bp_per_bead", default=3, type=int,
+        help = "Number of bp for each coarse-grained bead; default = 3")
+    parser.add_argument("-fl", "--flex", default=False, action="store_true",
+        help = ("Generate output file with the flexible resids formatted into "
+                "2 columns.  The first row contains the segnames for the 2 "
+                "DNA strands; default = False"))
 
     # I would like to implement a storage to not need to repeat cg each run
     # parser.add_argument("-c", "--cgpdb", help="coarse-grained pdb file")
 
     parser.add_argument("-f", dest="f_collide", action='store_true',
-        help="use fortran module for calculating collisions")
+        help="use fortran module for calculating collisions; the default")
     parser.add_argument("-py", dest="f_collide", action='store_false',
         help="use python module for calculating collisions")
     parser.set_defaults(f_collide=True)
 
     parser.add_argument("-u", dest="keep_unique", action="store_true",
-        help="only store coordinates of unique structures")
+        help="only store coordinates of unique structures; the default")
     parser.add_argument("-a", dest="keep_unique", action="store_false",
         help="store coordinates for all accepted structures")
     parser.set_defaults(keep_unique=True)
@@ -1285,42 +944,63 @@ def parse():
     group2 = parser.add_mutually_exclusive_group()
     group2.add_argument("-l", "--Llp", type=int,
         help=("length of desired coarse-grain long DNA to simulate (in units of"
-              " persistence lengths)") )
-    group2.add_argument("-p", "--pdb", default="dna.pdb",
+              " persistence lengths); -->THIS FUNCTIONALITY NO LONGER WORKS "
+              "(NEED TO REVISE FOR BACKWARD COMPATIBILITY)<--") )
+    group2.add_argument("-p", "--pdb", default="new_dsDNA.pdb",
         help="all atom pdb file")
 
     return parser.parse_args()
 
 def write_flex_resids(all_beads, ARGS):
     '''
-    Write the chain names and resids of a list of sasmol objects to file
+    Write the segnames names and resids of a list of sasmol objects to file
     Designed to be used for a list of sasmol objects representing coarse-grained
-    DNA beads.  
+    DNA beads.
     These files can be read using the function 'read_flex_resids'
     '''
-    chain1_bead_resids = []
-    chain2_bead_resids = []
-    chain1_bead_labels = []
-    chain2_bead_labels = []
-    for i in xrange(len(all_beads)):
-        chain1_bead_resids.append(all_beads[i].resids()[:ARGS.bp_per_bead])
-        chain2_bead_resids.append(all_beads[i].resids()[ARGS.bp_per_bead:])
-        chain1_bead_labels.append(all_beads[i].chains()[0])
-        chain2_bead_labels.append(all_beads[i].chains()[1])
-        
-    chain1_label = list(set(chain1_bead_labels))
-    chain2_label = list(set(chain2_bead_labels))
-    assert 1 == len(chain1_label) & 1 == len(chain2_label), "chain id > 1"
+    dna1_bead_resids = []
+    dna2_bead_resids = []
+    dna_bead_resids = [dna1_bead_resids, dna2_bead_resids]
+    dna1_bead_labels = []
+    dna2_bead_labels = []
+    dna_bead_labels = [dna1_bead_labels, dna2_bead_labels]
+
+    b_per_bead = np.zeros((len(all_beads)), dtype='int')
+    fewer_bp = []
+    for (i, bead) in enumerate(all_beads):
+        for (j, label) in enumerate(bead.segnames()):
+            basis_filter = "((segname[i]=='"+label+"'))"
+            error, dna_strand_mask = bead.get_subset_mask(basis_filter)
+            dna = sasmol.SasMol(0)
+            error = bead.copy_molecule_using_mask(dna, dna_strand_mask, 0)
+            # dna1_bead_labels.append(all_beads[i].segnames()[0])
+            dna_bead_labels[j].append(dna.segnames()[0])
+            dna_bead_resids[j].append(dna.resids())
+            b_per_bead[i] += len(dna.resids())
+        if b_per_bead[i] < b_per_bead[0]:
+            fewer_bp.append(i)
+            n_fewer = b_per_bead[0]/2 - b_per_bead[i]/2
+            print '%d fewer bases in bead %d than the others' % (n_fewer, i + 1)
+            print 'appending 0 to the flex file'
+            for j in  xrange(n_fewer):
+                dna1_bead_resids[i].append(0)
+                dna2_bead_resids[i].append(0)
+
+    dna1_label = list(set(dna1_bead_labels))
+    dna2_label = list(set(dna2_bead_labels))
+    assert 1 == len(dna1_label) & 1 == len(dna2_label), ("multiple segnames "
+                                                         "within DNA strand")
+
     flex_id_out = open(ARGS.pdb[:-3]+'flex', 'w')
-    flex_id_out.write('%s %s\n' % (chain1_label[0], chain2_label[0]))
-    
-    n_flex_bp = (i+1)*ARGS.bp_per_bead
-    chain1_resids = np.reshape(np.array(chain1_bead_resids), n_flex_bp)
-    chain2_resids_temp = np.reshape(np.array(chain2_bead_resids), n_flex_bp)
-    chain2_resids_temp.sort()
-    chain2_resids = chain2_resids_temp[::-1]
+    flex_id_out.write('%s %s\n' % (dna1_label[0], dna2_label[0]))
+
+    n_flex_bp = len(all_beads)*b_per_bead[0] / 2
+    dna1_resids = np.reshape(np.array(dna1_bead_resids), n_flex_bp)
+    dna2_resids_temp = np.reshape(np.array(dna2_bead_resids), n_flex_bp)
+    dna2_resids_temp.sort()
+    dna2_resids = dna2_resids_temp[::-1]
     for i in xrange(n_flex_bp):
-        flex_id_out.write('%d %d\n' % (chain1_resids[i], chain2_resids[i]))
+        flex_id_out.write('%d %d\n' % (dna1_resids[i], dna2_resids[i]))
     flex_id_out.close()
 
 def read_flex_resids(flex_file):
@@ -1329,24 +1009,25 @@ def read_flex_resids(flex_file):
     First line of file should have the DNA chain names
     Following lines should have the resids from each chain that are designated
     as flexible, for example:
-    A B 
-    1 4 
-    2 3 
-    3 2 
-    4 1 
+    A B
+    1 4
+    2 3
+    3 2
+    4 1
     '''
     lines = [line.strip() for line in open(flex_file)]
-    chains = []
-    chains.append(lines[0][0])
-    chains.append(lines[0][-1])
-    flex_resids = np.genfromtxt(flex_file,delimiter=" ")[1:]
-    return (chains, flex_resids)
+    segnames = []
+    segnames.append(lines[0][0])
+    segnames.append(lines[0][-1])
+    flex_resids = np.genfromtxt(flex_file, dtype='int',delimiter=" ")[1:]
+    return (segnames, flex_resids)
 
 def main():
 
     # set the DNA properties parameters:
-    lp = 0.53      # persistence length  (lp = 530A)
-    w = 46        # width of chain in A (w = 46A)l
+    lp = 0.53     # persistence length  (lp = 530A)
+    w = 46        # effective measure of dsDNA chain width in A (w = 46A)
+    #DOI 10.1021/ma201277e used w=46, lp=53
 
     if ARGS.f_collide:
         print 'using fortran collision calculation'
@@ -1371,23 +1052,29 @@ def main():
         dna_resids =  []
         pro_groups =  []
         if ARGS.pdb == '1zbb_tetra_half.pdb':
-            dna_chains = ['I', 'J']
+            dna_segnames = ['I', 'J']
             dna_resids.append([1, 347])
             dna_resids.append([347, 1])
-            # continuous flexible residues, recall excludes upper lim: [a, b)
-            l = [range(1, 31), range(165, 196), range(333, 348)]
-            # proteing groups
+            # continuous flexible residues
+            #flex_resids = [range(1, 31), range(165, 196), range(333, 348)]
+            flex_resids = [range(1, 10), range(20, 31), range(165, 196),
+                           range(333, 348)] # high val excluded
+            #flex_resids = [range(0), range(165, 196)]
+            ARGS.theta_max =  [5, 10, 5, 10]
+            #pro_groups.append([])
+            pro_groups.append([])
             pro_groups.append(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'])
             pro_groups.append(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'])
 
-        elif  ARGS.pdb ==  'c11_withTails.pdb':
+#        elif  ARGS.pdb ==  'c11_withTails.pdb': # wrong file }:-|
+        elif  ARGS.pdb ==  'new_c11_tetramer.pdb':
             '''The C11 nucleosome tetramer with all the protein tails'''
-            dna_chains = ['J', 'L']
+            dna_segnames = ['DNA1', 'DNA2']
             dna_resids.append([1, 693])
             dna_resids.append([693, 1])
-            # continuous flexible residues of DNA on first chain
+            # continuous flexible residues on the first DNA strand
             # recall that range(a, b) excludes upper lim: [a, b)
-            l = [range(1, 31), range(167, 198), range(334, 365),
+            flex_resids = [range(1, 31), range(167, 198), range(334, 365),
                  range(501, 532), range(667, 694)]
             pro_groups.append(['A0', 'B0', 'C0', 'D0',
                                'E0', 'F0', 'G0', 'H0'])
@@ -1397,20 +1084,21 @@ def main():
                                'Q1', 'R1', 'S1', 'T1'])
             pro_groups.append(['M0', 'N0', 'O0', 'P0',
                                'Q0', 'R0', 'S0', 'T0'])
+            ARGS.theta_max = [10, 10, 10, 10, 10]
 
         elif  ARGS.pdb ==  'c11-H5_noH_trunTails.pdb':
             '''The C11 nucleosome tetramer with the protein tails removed'''
-            dna_chains = ['J', 'L']
+            dna_segnames = ['J', 'L']
             dna_resids.append([1, 693])
             dna_resids.append([693, 1])
-            # continuous flexible residues of DNA on first chain
+            # continuous flexible residues on the first DNA strand
             # recall that range(a, b) excludes upper lim: [a, b)
-            #s l = [range(1, 31), range(167, 198), range(334, 365),
+            #s flex_resids = [range(1, 31), range(167, 198), range(334, 365),
             #s     range(501, 532), range(667, 694)]
-            #s l = [range(1, 31), range(167, 198)]
-            #s l = [range(1, 31), range(167, 198), range(334, 365),
+            #s flex_resids = [range(1, 31), range(167, 198)]
+            #s flex_resids = [range(1, 31), range(167, 198), range(334, 365),
             #s      range(501, 532), range(667, 694)]
-            l = [range(1, 10), range(177, 180), range(344, 352),
+            flex_resids = [range(1, 10), range(177, 180), range(344, 352),
                  range(513, 517), range(680, 694)]
             pro_groups.append(['A0', 'B0', 'C0', 'D0',
                                'E0', 'F0', 'G0', 'H0', 'H5S1'])
@@ -1422,15 +1110,15 @@ def main():
                                'Q0', 'R0', 'S0', 'T0', 'H5V1'])
         elif  ARGS.pdb ==  'c11_trunTails.pdb':
             '''The C11 nucleosome tetramer with the protein tails removed'''
-            dna_chains = ['J', 'L']
+            dna_segnames = ['J', 'L']
             dna_resids.append([1, 693])
             dna_resids.append([693, 1])
-            # continuous flexible residues of DNA on first chain
+            # continuous flexible residues on the first DNA strand
             # recall that range(a, b) excludes upper lim: [a, b)
-            #s l = [range(1, 31), range(167, 198), range(334, 365),
+            #s flex_resids = [range(1, 31), range(167, 198), range(334, 365),
             #s     range(501, 532), range(667, 694)]
-            #s l = [range(1, 31), range(167, 198)]
-            l = [range(1, 3), range(519, 532), range(667, 669)]
+            #s flex_resids = [range(1, 31), range(167, 198)]
+            flex_resids = [range(1, 3), range(519, 532), range(667, 669)]
             pro_groups.append(['A0', 'B0', 'C0', 'D0',
                                'E0', 'F0', 'G0', 'H0',
                                'A1', 'B1', 'C1', 'D1',
@@ -1442,15 +1130,15 @@ def main():
 
         elif  ARGS.pdb ==  'c11_noTails.pdb':
             '''The C11 nucleosome tetramer without the protein tails'''
-            dna_chains = ['J', 'L']
+            dna_segnames = ['J', 'L']
             dna_resids.append([1, 693])
             dna_resids.append([693, 1])
-            # continuous flexible residues of DNA on first chain
+            # continuous flexible residues on the first DNA strand
             # recall that range(a, b) excludes upper lim: [a, b)
-            #s l = [range(1, 31), range(167, 198), range(334, 365),
+            #s flex_resids = [range(1, 31), range(167, 198), range(334, 365),
             #s     range(501, 532), range(667, 694)]
-            #s l = [range(1, 31), range(167, 198)]
-            l = [range(1), range(167, 180)]
+            #s flex_resids = [range(1, 31), range(167, 198)]
+            flex_resids = [range(1), range(167, 180)]
             pro_groups.append(['A0', 'B0', 'C0', 'D0',
                                'E0', 'F0', 'G0', 'H0'])
             pro_groups.append(['A1', 'B1', 'C1', 'D1',
@@ -1461,12 +1149,12 @@ def main():
                                'Q0', 'R0', 'S0', 'T0'])
 
         elif ARGS.pdb == '1zbb_tetra_corrected.pdb':
-            dna_chains = ['L', 'J']
+            dna_segnames = ['L', 'J']
             dna_resids.append([1, 694])
             dna_resids.append([694, 1])
-            # continuous flexible residues of DNA on first chain
+            # continuous flexible residues on the first DNA strand
             # recall that range(a, b) excludes upper lim: [a, b)
-            l = [range(1, 31), range(167, 198), range(334, 365),
+            flex_resids = [range(1, 31), range(167, 198), range(334, 365),
                  range(501, 532), range(667, 695)]
             # proteing groups
             pro_groups.append(['m', 'n', 'o', 'p', 'q', 'r', 's', 't'])
@@ -1476,19 +1164,19 @@ def main():
 
         elif ARGS.pdb == 'new_dsDNA.pdb':
             # linker dna file
-            dna_chains = ['A', 'B']
+            dna_segnames = ['DNA1', 'DNA2']
             dna_resids.append([1, 30]) # DNA base pairing
             dna_resids.append([30, 1]) # DNA base pairing
-            l = [range(1, 30)]
+            flex_resids = [range(1, 10), range(10, 31)]
+            #ARGS.theta_max = [90, 1]
 
 
         elif ARGS.pdb == 'dna.pdb':
-            #dummy dna file
-            dna_chain1 = 'A'
-            dna_chain2 = 'B'
-            dna_resid1 = np.array([1, 60])
-            dna_resid2 = np.array([120, 61])
-            l = [range(1, 120)]
+            # 60bp random sequence dsDNA
+            dna_segnames = ['A', 'B']
+            dna_resids.append([1, 60])
+            dna_resids.append([120, 61])
+            flex_resids = [range(1, 120)]
 
         else:
             print "\n>>> ERROR, unknow pdb file input <<<\n"
@@ -1498,7 +1186,8 @@ def main():
         (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, all_beads, all_proteins,
          trialbeads, beadgroups, dna_bead_masks, aa_pgroup_masks, move_masks,
          cg_pgroup_masks, aa_all, aa_dna_mask, aa_pro_mask) = make_cg_model(
-             ARGS, all_atom_pdb, dna_chains, dna_resids, l, pro_groups)
+             ARGS, all_atom_pdb, dna_segnames, dna_resids, flex_resids,
+             pro_groups)
 
         # this is important for re-aligning the proteins after moving them
         cg_pro_orig = sasmol.SasMol(0)
@@ -1507,33 +1196,35 @@ def main():
 
         toc = time.time() - tic ; print 'coarse-grain time =', toc, 'seconds'
 
-    if ARGS.pdb:
+    if None == ARGS.Llp and ARGS.flex:
         write_flex_resids(all_beads, ARGS)
-    
-    
+
+
     (nbeads, c) = cg_dna.coor()[0].shape
     coorCopy = np.ones((nbeads, 4))
     coorCopy[:, :3] = np.copy(cg_dna.coor()[0])
 
-    '''
-    #s this was useful for debugging:
+    if True:
+        from  obsolete_cgDNA_move import write_xyz
+        write_xyz(ARGS.pdb[:-4]+'_cgDNA.dat', cg_dna.coor()[0], 0)
+        write_xyz(ARGS.pdb[:-4]+'_cgPro.dat', cg_pro.coor()[0], 0)
 
-    rg_lp = np.zeros(iters)
-    re_lp = np.zeros(iters)
-    rg0 = cg_dna.calcrg(0)/lp
-    re0 = mag(cg_dna.coor()[0, -1]-cg_dna.coor()[0, 0])/lp
 
-    if ARGS.all_files:
-        fName = 'dnaMoves.o'
-        outData = open(fName, 'a')
-        outData.write( ("# pdb=%s\t iters=%d\t nsteps=%d\t n_soft=%d\t "
-        "theta_max=%f \n# moves\t rg/lp\t\t re/lp\t\t a\t r\n" %(all_atom_pdb, "
-        "iters, nsteps, n_soft, theta_max)"))
-        dna_dcd_name = 'aaDNA.dcd'
-        aa_dna_dcd_out = aa_dna.open_dcd_write(dna_dcd_name)
-        pro_dcd_name = 'aaPro.dcd'
-        aa_pro_dcd_out = aa_pro.open_dcd_write(pro_dcd_name)
-    '''
+    if True:
+        import survey_distances as sd
+        dna_file_name = ARGS.pdb[:-4] + '_cgDNA.pdb'
+        pro_file_name = ARGS.pdb[:-4] + '_cgPro.pdb'
+        cg_dna.write_pdb(dna_file_name, 0, 'w')
+        cg_pro.write_pdb(pro_file_name, 0, 'w')
+        dna_pro_dist = sd.f_calc_dist2(cg_dna.coor()[0], cg_pro.coor()[0])
+        np.savetxt('dna-pro-dist_c11_withTails.txt', dna_pro_dist)
+
+        mn = min(dna_pro_dist)
+        mx = max(dna_pro_dist)
+        print 'min distance ', mn
+        print 'max distance ', mx
+        sd.plot_historam(dna_pro_dist,'DNA-Protein Distances', int(1.1*mx))
+        print 'hold here'
 
     tic = time.time()
     dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
@@ -1541,40 +1232,20 @@ def main():
            cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask)
     toc = time.time() - tic; print 'run time =', toc, 'seconds'
 
-    # this was useful for looking at the extention of long DNA
-    #s if ARGS.all_files:
-        #s rg_lp[i] = cg_dna.calcrg(0)/lp
-        #s re_lp[i] = mag(cg_dna.coor()[0, -1]-cg_dna.coor()[0, 0])/lp
-        #s outData.write("%d\t%f\t%f\t%d\t%r\n" %((i+1)*nsteps,
-        #s                 rg_lp[i], re_lp[i], a, r) )                #output
-
-
-    #s if ARGS.all_files:
-    #s     # aa_dna.close_dcd_write(aa_dna_dcd_out)
-    #s     # aa_pro.close_dcd_write(aa_pro_dcd_out)
-    #s     dir_out = timestr + "out/"
-    #s     os.system("mkdir "+dir_out)
-    #s     os.system("mv cgDNA.dcd " + dir_out)  # created in dna_mc
-    #s     os.system("mv cgPro.dcd " + dir_out)  # created in dna_mc
-    #s     os.system("mv aaDNA.dcd " + dir_out)  # conditionally created in main
-    #s     os.system("mv aaPro.dcd " + dir_out)  # conditionally created in main
-    #s     os.system("mv aaPro.pdb " + dir_out)  # cretead in make_cg_model
-    #s     os.system("mv cgPro.pdb " + dir_out)  # cretead in make_cg_model
-    #s     os.system("mv aaDNA.pdb " + dir_out)  # cretead in make_cg_model
-    #s     os.system("mv cgDNA.pdb " + dir_out)  # cretead in make_cg_model
-    #s     os.system("mv dnaMoves.o " + dir_out) # conditionally created in main
-    #s     os.system("mv " + all_dcd_name + " " + dir_out)
-    #s     outData.close()
-
 if __name__ == "__main__":
 
     import argparse
-    if '-v' in sys.argv:
-        logging.basicConfig(filename='_log-%s' %__name__, level=logging.DEBUG)
-    else:
-        logging.basicConfig()
 
-    # make ARGS global
-    ARGS = parse()
+    ''' wanted to implement this for error handling but never did'''
+    # import logging
+    # LOGGER = logging.getLogger(__name__) #add module name manually
+    # import sys
+    # if '-v' in sys.argv:
+    #     logging.basicConfig(filename='_log-%s' %__name__, level=logging.DEBUG)
+    # else:
+    #     logging.basicConfig()
+
+    ARGS = parse()  # this makes ARGS global
+
     main()
-    print '\nSucessfully finished %d DNA moves! \n\m/ >.< \m/' % ARGS.nsteps
+    print '\nFinished %d successful DNA moves! \n\m/ >.< \m/' % ARGS.nsteps
