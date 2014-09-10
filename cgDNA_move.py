@@ -3,18 +3,17 @@
 # Author:   --<Steven Howell>
 # Purpose:  Generate modified DNA or DNA-protein structures
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.39 2014-09-02 12:34:07 schowell Exp $
+# $Id: cgDNA_move.py,v 1.40 2014-09-10 20:10:26 schowell Exp $
 
 #0000000011111111112222222222333333333344444444445555555555666666666677777777778
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
 
 import sassie.sasmol.sasmol as sasmol, numpy as np
-import collision, random, warnings, time
+import collision, random, warnings, time, os
 
 ''' modules I had imported once but no longer need (hopefully)'''
 # import os.path as op
 # import string
-# import os
 # import locale
 # import subprocess
 # import sys ; sys.path.append('./')
@@ -62,8 +61,8 @@ def make_cg_model(ARGS, all_atom_pdb, dna_segnames, dna_resids, l, pro_groups):
                     "(segname[i] == '"+dna1+"'))")
     error, mask = aa_dna.get_subset_mask(basis_filter)   #; print mask
     s = np.sum(mask)
-    assert s == nbeads, ("\n>>> ERROR!!! fail to creat correct number of dummy "
-                         "beads: expected %d but made %d\n") %(nbeads, s)
+    assert s == nbeads, ("\n>>> ERROR!!! fail to create correct number of dummy"
+                         " beads: expected %d but made %d\n") %(nbeads, s)
     error = aa_dna.copy_molecule_using_mask(cg_dna, mask, frame)
 
     # initialize bead coordinates and other variables
@@ -664,32 +663,50 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
     this function perform nsteps Monte-Carlo moves on the cg_dna
     '''
 
-    if ARGS.rewind > 0:
-        '''create a backup of the coordinates'''
-        cg_dna_old = sasmol.SasMol(0)
-        cg_pro_old = sasmol.SasMol(0)
-        vecXYZ_old = np.copy(vecXYZ)
-        ## COME BACK TO THIS ##
-        if ARGS.rstep == 0:
-            ARGS.rstep = ARGS.rewind / 2
-            print "No rewind step size provided."
-            print "Will rewind", ARGS.rstep, "every", ARGS.rewind, "steps"
-
-    timestr = time.strftime("%y%m%d_%H%M%S_") # save file prefix
+    timestr = time.strftime("%y%m%d_%H%M%S_") # prefix for output files
     all_dcd_name = timestr + ARGS.pdb[:-4] + '.dcd'
     aa_all_dcd_out = aa_all.open_dcd_write(all_dcd_name)
 
-    d_nbeads = cg_dna.natoms()
-    p_nbeads = cg_pro.natoms()
-    nflex = trialbeads.size
+    # create the coarse-grained DNA and protein dcd files
+    cg_dna_dcd_name = timestr + 'cg_dna.dcd'
+    cg_pro_dcd_name = timestr + 'cg_pro.dcd'    
+    cg_dna_dcd_out = cg_dna.open_dcd_write(cg_dna_dcd_name)
+    cg_pro_dcd_out = cg_pro.open_dcd_write(cg_pro_dcd_name)    
+    cg_dna.write_dcd_step(cg_dna_dcd_out, 0, 1)
+    cg_pro.write_dcd_step(cg_pro_dcd_out, 0, 1)    
+    
+    # create a dummy sasmol object for the 3 orientation vectors for each bead
+    # will write these out to dcd files to store the coordinates along the way
+    vecX_mol = sasmol.SasMol(0)
+    vecY_mol = sasmol.SasMol(0)
+    vecZ_mol = sasmol.SasMol(0)    
+    error, mask = cg_dna.get_subset_mask('(all)')
+    error = cg_dna.copy_molecule_using_mask(vecX_mol,mask,0)
+    error = cg_dna.copy_molecule_using_mask(vecY_mol,mask,0)
+    error = cg_dna.copy_molecule_using_mask(vecZ_mol,mask,0)
+    vecX_mol.setCoor(np.array([vecXYZ[0]])) # the np.array recast these so they 
+    vecY_mol.setCoor(np.array([vecXYZ[1]])) # do not update with vecXYZ 
+    vecZ_mol.setCoor(np.array([vecXYZ[2]]))
+    vecX_dcd_name = timestr + 'vecX.dcd'
+    vecY_dcd_name = timestr + 'vecY.dcd'
+    vecZ_dcd_name = timestr + 'vecZ.dcd'
+    vecX_dcd_out = vecX_mol.open_dcd_write(vecX_dcd_name)
+    vecY_dcd_out = vecY_mol.open_dcd_write(vecY_dcd_name)    
+    vecZ_dcd_out = vecZ_mol.open_dcd_write(vecZ_dcd_name)        
+    vecX_mol.write_dcd_step(vecX_dcd_out, 0, 1)
+    vecY_mol.write_dcd_step(vecY_dcd_out, 0, 1)   
+    vecZ_mol.write_dcd_step(vecZ_dcd_out, 0, 1)   
+    
+    # initialize variables for each run
+    steps_from_0 = np.zeros(ARGS.nsteps, dtype='int64')
     xyz = np.copy(vecXYZ)
-    d_coor = np.copy(cg_dna.coor()[0])
-    p_coor = np.copy(cg_pro.coor()[0])
+    d_coor = np.copy(cg_dna.coor()[0]) # unique memory for each
+    p_coor = np.copy(cg_pro.coor()[0]) # unique memory for each
 
     (u, l) = checkU(d_coor) # vectors between beads u, and average distance l
     lpl = lp/l  # setup the presistence length paramater
 
-    dna_energy_width = {'a': 0, 'b': 46, 'z': 0}
+    dna_energy_width = {'a': 0, 'b': 46, 'z': 0} # yet to set a, and z
     w = dna_energy_width[dna_type.lower()]
 
     dna_diam = {'a': 25.5, 'b': 23.7, 'z': 18.4}
@@ -701,7 +718,7 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
     dna_pro_test = dna_bead_radius + pro_bead_radius
 
     # calculate the energy of the starting positions
-    wca0 = np.zeros((d_nbeads, d_nbeads))
+    wca0 = np.zeros((cg_dna.natoms(),cg_dna.natoms()))
     Ub0 = energyBend(lpl, u, l)
 
     if ARGS.f_collide:
@@ -711,26 +728,30 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
 
     U_T0 = Ub0 + Uwca0
 
-    n_accept = 0 # times configuration was accepted
-    n_reject = 0 # times configuration was rejected
-    n_writen = 0 # times dcd write has been called
-
-    assert np.size(ARGS.theta_max) - 1 == beadgroups[-1], (
-        'each group needs its own theta_max: %d != %d'
-        % (np.size(ARGS.theta_max - 1), beadgroups[-1]))
+    n_accept   = 0 # total times configuration was accepted
+    n_reject   = 0 # total times configuration was rejected
+    n_written  = 0 # total times dcd write has been called
+    fail_tally = 0 # number of times failed for particular iteration
+    n_from_reload = 0 # number of stps since last reload
+    n_reload = [0]  # listt containing the i_goback values
+    
+    # this should not actually be >=, come back to this
+    assert np.size(ARGS.theta_max) - 1 >= np.max(beadgroups), (
+        'each group needs its own theta_max: %d < %d'
+        % (np.size(ARGS.theta_max) - 1, np.max(beadgroups) ))
 
     # Main MC loop #
     while n_accept < ARGS.nsteps:
 
-        trial_bead = trialbeads[int((nflex)*random.random())]
-        print "trial_bead(%d) = %d" % (n_accept, trial_bead)
-        # trial_bead = trialbeads[i%len(trialbeads)]
+        # Choose a bead to rotate
+        trial_bead = trialbeads[int((trialbeads.size)*np.random.random())]        
 
+        # Determine rotation to perform
         theta_max = ARGS.theta_max[beadgroups[trial_bead]]
         thetaZ_max = np.float(theta_max) # scale thetaZ separatly here
-        thetaZ = 2 * thetaZ_max * random.random() - thetaZ_max
-        thetaX = 2 * theta_max * random.random() - theta_max
-        thetaY = 2 * theta_max * random.random() - theta_max
+        thetaZ = 2 * thetaZ_max * np.random.random() - thetaZ_max
+        thetaX = 2 * theta_max  * np.random.random() - theta_max
+        thetaY = 2 * theta_max  * np.random.random() - theta_max
         thetaXYZ = [thetaX/ARGS.n_soft, thetaY/ARGS.n_soft, thetaZ/ARGS.n_soft]
 
         if  len(group_masks) == 0 or beadgroups[trial_bead] == len(group_masks):
@@ -780,11 +801,12 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
                     print 'Warning: ~~> unclear OverflowError <~~ dU = ', dU
                     print 'not sure where the error originated from'
 
-        test = random.random()
+        test = np.random.random()
         collision = 0
 
         if test >= p:
             dna_pass = False
+            # print 'step failed because of DNA energy'
         else:
             dna_pass = True
 
@@ -811,50 +833,135 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
                     #print 'collision, set p=0'
                     collision = 1
 
-                if collision == 1:
-                    print 'failed because of collision'
+                # if collision == 1:
+                    # print 'failed because of collision'
 
         if dna_pass and collision == 0:
+            n_from_reload += 1
+            steps_from_0[n_accept] = n_from_reload + n_reload[-1]
             n_accept += 1                      # increment accept counter
-            cg_dna.coor()[0] = np.copy(d_coor) # update dna coordinates
-            cg_pro.coor()[0] = np.copy(p_coor) # update protein coordinates
+            # cg_dna.setCoor(d_coor) # <-- DO NOT use setCoor, want uniuqe mem
+            # cg_pro.setCoor(p_coor) # <-- DO NOT use setCoor, want uniuqe mem            
+            cg_dna.setCoor(np.array([(d_coor)])) # update dna coordinates
+            cg_pro.setCoor(np.array([(p_coor)])) # update protein coordinates
             vecXYZ = np.copy(xyz)              # update dna orientations
-            wca0 = np.copy(wca1)               # update DNA WCA energy
+            vecX_mol.setCoor(np.array([vecXYZ[0]])) # independent of vecXYZ[0]
+            vecY_mol.setCoor(np.array([vecXYZ[1]])) # independent of vecXYZ[1]
+            vecZ_mol.setCoor(np.array([vecXYZ[2]])) # independent of vecXYZ[2]
+            
+            wca0 = np.copy(wca1)               # update DNA WCA energy        
             U_T0 = U_T1                        # update total energy
 
+            #print output regarding trial
+            print "trial_bead(%3d) = %2d\t failed attempts = %2d" % (n_accept, 
+                                                        trial_bead, fail_tally)
+            fail_tally = 0                     # reset fail_tally
+
+            # write out the accepted configuration for go-back use
+            if ARGS.goback > 0:
+                # these are incremented by one because the original coordinates 
+                # are saved (that is not the case for aa_all)
+                cg_dna.write_dcd_step(cg_dna_dcd_out, 0, n_written+1)
+                cg_pro.write_dcd_step(cg_pro_dcd_out, 0, n_written+1)                
+                vecX_mol.write_dcd_step(vecX_dcd_out, 0, n_written+1)
+                vecY_mol.write_dcd_step(vecY_dcd_out, 0, n_written+1)   
+                vecZ_mol.write_dcd_step(vecZ_dcd_out, 0, n_written+1)   
+            
             # recover an all atom representation and save coordinates to a dcd
+            # this requires re-inserting the aa-coordinates which takes added 
+            # time so only do when designated
             if 0 == n_accept % ARGS.n_dcd_write:
-                # ~~DNA~~
+                # ~~recover aa-DNA~~
                 error = recover_aaDNA_model(cg_dna, aa_dna, vecXYZ, all_beads,
                                             dna_bead_masks)
-                # ~~Protein~~
+                # ~~recover aa-Protein~~
                 recover_aaPro_model(aa_pgroup_masks, cg_pgroup_masks, cg_pro,
                                     all_proteins, aa_pro)
-                # ~~Complete Structure~~
+                # ~~Combine aa Complete Structure~~
                 aa_all.set_coor_using_mask(aa_pro, 0, aa_pro_mask)
                 aa_all.set_coor_using_mask(aa_dna, 0, aa_dna_mask)
                 # ~~Write DCD step~~
-                n_writen += 1
-                aa_all.write_dcd_step(aa_all_dcd_out, 0, n_writen)
-
+                n_written += 1
+                aa_all.write_dcd_step(aa_all_dcd_out, 0, n_written)
+                
         else :
-            print 'step failed because of DNA energy'
-            n_reject += 1                           # increment reject counter
-            d_coor = np.copy(cg_dna.coor()[0])   # reset the dna coordinates
+            # by default ARGS.goback is -1 so this returns FALSE
+            if fail_tally == ARGS.goback:  
+                i_goback = rewind(ARGS, n_accept, cg_dna_dcd_name,
+                            cg_dna, cg_pro_dcd_name, cg_pro, vecX_dcd_name, 
+                            vecX_mol, vecY_mol, vecY_dcd_name, vecZ_mol, 
+                            vecZ_dcd_name, vecXYZ)
+
+                d_coor = np.copy(cg_dna.coor()[0]) # reset the dna coordinates
+
+                # reset the reference energy
+                (u, l) = checkU(d_coor) # vectors between beads u, and average distance l
+                (Uwca0, wca0) = f_energy_wca(w, d_coor, wca0, 0)
+                Ub0 = energyBend(lpl, u, l)
+                U_T0 =  Ub0 + Uwca0
+                
+                n_from_reload = 0
+                n_reload.append(steps_from_0[i_goback-1])
+                fail_tally = 0 # reset the fail counter
+            else:
+                fail_tally += 1                    # increment bead reject counter 
+                n_reject += 1                      # increment total reject counter
+                d_coor = np.copy(cg_dna.coor()[0]) # reset the dna coordinates
+                
             p_coor = np.copy(cg_pro.coor()[0]) # reset the protein coordinates
             xyz = np.copy(vecXYZ)              # reset the dna orientations
 
             # save previous coordinates again
             if not ARGS.keep_unique:
                 # ~~Write DCD step~~
-                n_writen += 1
-                aa_all.write_dcd_step(aa_all_dcd_out, 0, n_writen)
+                n_written += 1
+                aa_all.write_dcd_step(aa_all_dcd_out, 0, n_written )
+                cg_dna.write_dcd_step(cg_dna_all_dcd_out, 0, n_written + 1)
+                cg_pro.write_dcd_step(cg_pro_all_dcd_out, 0, n_written + 1)                
 
     aa_all.close_dcd_write(aa_all_dcd_out)
+    
+    # cg_dna.close_dcd_write(cg_dna_dcd_out) #uncomment if wanting to keep
+    # cg_pro.close_dcd_write(cg_pro_dcd_out) #uncomment if wanting to keep
+    os.remove(cg_dna_dcd_name) # remove/comment to keep the cg dna coor
+    os.remove(cg_pro_dcd_name) # remove/comment to keep the cg pro coor   
+    os.remove(vecX_dcd_name) # remove/comment to keep the cg pro coor   
+    os.remove(vecY_dcd_name) # remove/comment to keep the cg pro coor   
+    os.remove(vecZ_dcd_name) # remove/comment to keep the cg pro coor       
 
+    np.savetxt(timestr+'n_from_0.txt', steps_from_0, fmt='%d')
     print "accepted %d moves" % n_accept
     print "rejected %d moves" % n_reject
-    #print "finished in the dna_mc module :(|)"
+
+    print n_reload
+    print steps_from_0
+
+def rewind(ARGS, n_accept, cg_dna_dcd_name, cg_dna, cg_pro_dcd_name, cg_pro, vecX_dcd_name, vecX_mol, vecY_mol, vecY_dcd_name, vecZ_mol, vecZ_dcd_name, vecXYZ):
+    
+    if ARGS.seed > 0:
+        np.random.seed(ARGS.seed)
+        i_goback = int(n_accept*np.random.random())
+    else:
+        i_goback = int(n_accept*np.random.random())
+        
+    # i_goback = 0 represents the original structure this is the 1st frame of 
+    # the cg_dna_dcd and cg_pro_dcd so increment by 1
+        
+    cg_dna.read_single_dcd_step(cg_dna_dcd_name, i_goback + 1)
+    cg_pro.read_single_dcd_step(cg_pro_dcd_name, i_goback + 1) 
+    vecX_mol.read_single_dcd_step(vecX_dcd_name, i_goback + 1)
+    vecY_mol.read_single_dcd_step(vecY_dcd_name, i_goback + 1)   
+    vecZ_mol.read_single_dcd_step(vecZ_dcd_name, i_goback + 1)                                     
+    vecXYZ[0] = vecX_mol.coor()[0]
+    vecXYZ[1] = vecY_mol.coor()[0]
+    vecXYZ[2] = vecZ_mol.coor()[0]                
+
+    if i_goback == 0:
+        print '\n>>> reloaded original coordinates <<<\n'
+    else:	
+        print '\n>>> reloaded accepted coordinates #%d <<<\n' % i_goback
+        
+    return i_goback
 
 def makeLongDNA(n_lp):
     print 'making DNA that is %d*lp long' %n_lp
@@ -898,9 +1005,11 @@ def parse():
         description = 'Generate modified DNA or DNA-protein structures'
         #epilog = 'no epilog found'
     )
-    parser.add_argument("-r", "--rewind", default=0, type=int,
-        help = ("Number of iterations before rewinding to previous sturcture"
-                " -->REWIND CURRENTLY NOT YET IMPLEMENTED<--") )
+    parser.add_argument("--seed", default=0, type=int,
+        help = ("Seed for generating random number for go-back routine") )
+    parser.add_argument("-gb", "--goback", default=-1, type=int,
+        help = ("Number of fails before going back to previously accepted "
+                "structure. Input should be > 0, default = -1 (off)") )
     parser.add_argument("-rs", "--rstep", default=0, type=int,
         help = ("Number of steps to rewind when rewinding to previous structure"
                 " -->REWIND CURRENTLY NOT YET IMPLEMENTED<--") )
@@ -915,10 +1024,10 @@ def parse():
         help = ("Max rotation angle for the x and y rotation; "
                 "max z scales with this paramater (curently 1x but code is "
                 "designed to allow max z to scale differently from max x and "
-                "y); default = 5"), default=5)
-    parser.add_argument("-ns", "--n_soft", default=2, type=int,
+                "y); default = 5"), default=[5])
+    parser.add_argument("-ns", "--n_soft", default=1, type=int,
         help = ("Number of bead over which to apply any rotation (i.e. soften "
-                "the bending); default = 2") )
+                "the bending); default = 1") )
     parser.add_argument("-bp", "--bp_per_bead", default=3, type=int,
         help = "Number of bp for each coarse-grained bead; default = 3")
     parser.add_argument("-fl", "--flex", default=False, action="store_true",
@@ -947,7 +1056,7 @@ def parse():
               " persistence lengths); -->THIS FUNCTIONALITY NO LONGER WORKS "
               "(NEED TO REVISE FOR BACKWARD COMPATIBILITY)<--") )
     group2.add_argument("-p", "--pdb", default="new_dsDNA.pdb",
-        help="all atom pdb file")
+        help="all atom pdb file, default='new_dsDNA.pdb'")
 
     return parser.parse_args()
 
@@ -1051,23 +1160,8 @@ def main():
         all_atom_pdb = ARGS.pdb
         dna_resids =  []
         pro_groups =  []
-        if ARGS.pdb == '1zbb_tetra_half.pdb':
-            dna_segnames = ['I', 'J']
-            dna_resids.append([1, 347])
-            dna_resids.append([347, 1])
-            # continuous flexible residues
-            #flex_resids = [range(1, 31), range(165, 196), range(333, 348)]
-            flex_resids = [range(1, 10), range(20, 31), range(165, 196),
-                           range(333, 348)] # high val excluded
-            #flex_resids = [range(0), range(165, 196)]
-            ARGS.theta_max =  [5, 10, 5, 10]
-            #pro_groups.append([])
-            pro_groups.append([])
-            pro_groups.append(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'])
-            pro_groups.append(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'])
 
-#        elif  ARGS.pdb ==  'c11_withTails.pdb': # wrong file }:-|
-        elif  ARGS.pdb ==  'new_c11_tetramer.pdb':
+        if  ARGS.pdb ==  'new_c11_tetramer.pdb':
             '''The C11 nucleosome tetramer with all the protein tails'''
             dna_segnames = ['DNA1', 'DNA2']
             dna_resids.append([1, 693])
@@ -1086,9 +1180,9 @@ def main():
                                'Q0', 'R0', 'S0', 'T0'])
             ARGS.theta_max = [10, 10, 10, 10, 10]
 
-        elif  ARGS.pdb ==  'c11-H5_noH_trunTails.pdb':
-            '''The C11 nucleosome tetramer with the protein tails removed'''
-            dna_segnames = ['J', 'L']
+        elif  ARGS.pdb ==  'new_c11h5.pdb':
+            '''The C11 nucleosome tetramer with the gH5 linker'''
+            dna_segnames = ['DNA1', 'DNA2']
             dna_resids.append([1, 693])
             dna_resids.append([693, 1])
             # continuous flexible residues on the first DNA strand
@@ -1098,86 +1192,48 @@ def main():
             #s flex_resids = [range(1, 31), range(167, 198)]
             #s flex_resids = [range(1, 31), range(167, 198), range(334, 365),
             #s      range(501, 532), range(667, 694)]
-            flex_resids = [range(1, 10), range(177, 180), range(344, 352),
+            small_range = [range(1, 10), range(177, 180), range(344, 352),
                  range(513, 517), range(680, 694)]
+            med_range   = [range(1, 20), range(172, 189), range(339, 357),
+                 range(507, 524), range(674, 694)]
+            large_range = [range(1, 31), range(167, 198), range(334, 365),
+                 range(501, 532), range(667, 694)]
+            flex_resids = large_range
+            two_four = []
+            for item in flex_resids:
+                two_four.append(item)
+            two_four[0] = two_four[4] = two_four[2] = []
+            two_three = []
+            for item in two_four:
+                two_three.append(item)
+            two_three[3] = []
+            flex_resids = two_four
             pro_groups.append(['A0', 'B0', 'C0', 'D0',
-                               'E0', 'F0', 'G0', 'H0', 'H5S1'])
+                               'E0', 'F0', 'G0', 'H0', 'H5N1'])
             pro_groups.append(['A1', 'B1', 'C1', 'D1',
-                               'E1', 'F1', 'G1', 'H1', 'H5T1'])
+                               'E1', 'F1', 'G1', 'H1', 'H5N2'])
             pro_groups.append(['M1', 'N1', 'O1', 'P1',
-                               'Q1', 'R1', 'S1', 'T1', 'H5U1'])
+                               'Q1', 'R1', 'S1', 'T1', 'H5N3'])
             pro_groups.append(['M0', 'N0', 'O0', 'P0',
-                               'Q0', 'R0', 'S0', 'T0', 'H5V1'])
-        elif  ARGS.pdb ==  'c11_trunTails.pdb':
-            '''The C11 nucleosome tetramer with the protein tails removed'''
-            dna_segnames = ['J', 'L']
-            dna_resids.append([1, 693])
-            dna_resids.append([693, 1])
-            # continuous flexible residues on the first DNA strand
-            # recall that range(a, b) excludes upper lim: [a, b)
-            #s flex_resids = [range(1, 31), range(167, 198), range(334, 365),
-            #s     range(501, 532), range(667, 694)]
-            #s flex_resids = [range(1, 31), range(167, 198)]
-            flex_resids = [range(1, 3), range(519, 532), range(667, 669)]
-            pro_groups.append(['A0', 'B0', 'C0', 'D0',
-                               'E0', 'F0', 'G0', 'H0',
-                               'A1', 'B1', 'C1', 'D1',
-                               'E1', 'F1', 'G1', 'H1',
-                               'M1', 'N1', 'O1', 'P1',
-                               'Q1', 'R1', 'S1', 'T1'])
-            pro_groups.append(['M0', 'N0', 'O0', 'P0',
-                               'Q0', 'R0', 'S0', 'T0'])
+                               'Q0', 'R0', 'S0', 'T0', 'H5N4'])
+            ARGS.theta_max = [10, 10, 10, 10, 10]
 
-        elif  ARGS.pdb ==  'c11_noTails.pdb':
-            '''The C11 nucleosome tetramer without the protein tails'''
-            dna_segnames = ['J', 'L']
-            dna_resids.append([1, 693])
-            dna_resids.append([693, 1])
-            # continuous flexible residues on the first DNA strand
-            # recall that range(a, b) excludes upper lim: [a, b)
-            #s flex_resids = [range(1, 31), range(167, 198), range(334, 365),
-            #s     range(501, 532), range(667, 694)]
-            #s flex_resids = [range(1, 31), range(167, 198)]
-            flex_resids = [range(1), range(167, 180)]
-            pro_groups.append(['A0', 'B0', 'C0', 'D0',
-                               'E0', 'F0', 'G0', 'H0'])
-            pro_groups.append(['A1', 'B1', 'C1', 'D1',
-                               'E1', 'F1', 'G1', 'H1',
-                               'M1', 'N1', 'O1', 'P1',
-                               'Q1', 'R1', 'S1', 'T1',
-                               'M0', 'N0', 'O0', 'P0',
-                               'Q0', 'R0', 'S0', 'T0'])
-
-        elif ARGS.pdb == '1zbb_tetra_corrected.pdb':
-            dna_segnames = ['L', 'J']
-            dna_resids.append([1, 694])
-            dna_resids.append([694, 1])
-            # continuous flexible residues on the first DNA strand
-            # recall that range(a, b) excludes upper lim: [a, b)
-            flex_resids = [range(1, 31), range(167, 198), range(334, 365),
-                 range(501, 532), range(667, 695)]
-            # proteing groups
-            pro_groups.append(['m', 'n', 'o', 'p', 'q', 'r', 's', 't'])
-            pro_groups.append(['M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'])
-            pro_groups.append(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'])
-            pro_groups.append(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'])
-
+        elif ARGS.pdb == 'new_dsDNA60.pdb':
+            # linker dna file
+            dna_segnames = ['DNA1', 'DNA2']
+            dna_resids.append([1, 60]) # DNA base pairing
+            dna_resids.append([120, 61]) # DNA base pairing
+            flex_resids = [range(16, 45)]
+            ARGS.theta_max = [10]
+            ARGS.bp_per_bead = 3
+            ARGS.n_soft = 1
+ 
         elif ARGS.pdb == 'new_dsDNA.pdb':
             # linker dna file
             dna_segnames = ['DNA1', 'DNA2']
             dna_resids.append([1, 30]) # DNA base pairing
             dna_resids.append([30, 1]) # DNA base pairing
-            flex_resids = [range(1, 10), range(10, 31)]
-            #ARGS.theta_max = [90, 1]
-
-
-        elif ARGS.pdb == 'dna.pdb':
-            # 60bp random sequence dsDNA
-            dna_segnames = ['A', 'B']
-            dna_resids.append([1, 60])
-            dna_resids.append([120, 61])
-            flex_resids = [range(1, 120)]
-
+            flex_resids = [range(1, 31)]
         else:
             print "\n>>> ERROR, unknow pdb file input <<<\n"
 
@@ -1200,37 +1256,13 @@ def main():
         write_flex_resids(all_beads, ARGS)
 
 
-    (nbeads, c) = cg_dna.coor()[0].shape
-    coorCopy = np.ones((nbeads, 4))
-    coorCopy[:, :3] = np.copy(cg_dna.coor()[0])
-
-    if True:
-        from  obsolete_cgDNA_move import write_xyz
-        write_xyz(ARGS.pdb[:-4]+'_cgDNA.dat', cg_dna.coor()[0], 0)
-        write_xyz(ARGS.pdb[:-4]+'_cgPro.dat', cg_pro.coor()[0], 0)
-
-
-    if True:
-        import survey_distances as sd
-        dna_file_name = ARGS.pdb[:-4] + '_cgDNA.pdb'
-        pro_file_name = ARGS.pdb[:-4] + '_cgPro.pdb'
-        cg_dna.write_pdb(dna_file_name, 0, 'w')
-        cg_pro.write_pdb(pro_file_name, 0, 'w')
-        dna_pro_dist = sd.f_calc_dist2(cg_dna.coor()[0], cg_pro.coor()[0])
-        np.savetxt('dna-pro-dist_c11_withTails.txt', dna_pro_dist)
-
-        mn = min(dna_pro_dist)
-        mx = max(dna_pro_dist)
-        print 'min distance ', mn
-        print 'max distance ', mx
-        sd.plot_historam(dna_pro_dist,'DNA-Protein Distances', int(1.1*mx))
-        print 'hold here'
-
     tic = time.time()
     dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
            beadgroups, move_masks, all_beads, dna_bead_masks, aa_pgroup_masks,
            cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask)
     toc = time.time() - tic; print 'run time =', toc, 'seconds'
+
+
 
 if __name__ == "__main__":
 

@@ -2,7 +2,7 @@
 # Author:  Steven C. Howell
 # Purpose: Replace DNA sequence with another sequence
 # Created: 04/24/2014
-# $Id: pdb2psfgen.py,v 1.4 2014-08-14 19:47:39 schowell Exp $
+# $Id: pdb2psfgen.py,v 1.5 2014-09-10 20:10:27 schowell Exp $
 '''
 This script loads a pdb structure file of DNA, and creates a '*.patches' file
 with the psfgen patches needed to use psfgen to create the structure.
@@ -25,7 +25,8 @@ def parse():
     )
 
     parser.add_argument("-p", "--pdb", help="all atom pdb file")
-    parser.add_argument("-c", "--chains", type=list, help="chains to extract, e.g.: [\"\'x\'\",\"\'y\'\"] or [\\'x\\',\\'y\\']")
+    parser.add_argument("-c", "--chains", nargs='+',  
+        help="chains to extract")
 
     return parser.parse_args()
 
@@ -33,9 +34,14 @@ def main():
     m1 = sasmol.SasMol(0)
     m1.read_pdb(ARGS.pdb)
     
+    print ARGS.chains    
+    
     chain1 = ARGS.chains[0]
     chain2 = ARGS.chains[1]
         
+    print 'chain 1: ', chain1
+    print 'chain 2: ', chain2
+    
     names = m1.resname()
     ids = m1.resid()
     c = m1.chain()
@@ -48,8 +54,8 @@ def main():
     outfile.write('# dna1: chain ' + chain1 + '\n')
     outfile.write('# dna2: chain ' + chain2 + '\n')
     
-    pyr = ['DC', 'DT', 'CYT', 'THY']
-    pur = ['DA', 'DG', 'ADE', 'GUA']
+    pyr = ['C','T','DC', 'DT', 'CYT', 'THY']
+    pur = ['A','G','DA', 'DG', 'ADE', 'GUA']
     pyrStr = 'patch DEO1 '
     purStr = 'patch DEO2 '
     

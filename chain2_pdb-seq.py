@@ -2,7 +2,7 @@
 # Author:  Steven C. Howell
 # Purpose: Prepare PDB for modeling
 # Created: 04/24/2014
-# $Id: chain2_pdb-seq.py,v 1.1 2014-08-13 18:07:51 schowell Exp $
+# $Id: chain2_pdb-seq.py,v 1.2 2014-09-10 20:10:27 schowell Exp $
 '''
 This script creates a separate pdb for each chain of 'aa_pdb'
 It also creates a sequence file for the residue sequence of that chain
@@ -35,7 +35,7 @@ def parse():
     )
 
     parser.add_argument("-p", "--pdb", help="all atom pdb file")
-    parser.add_argument("-c", "--chains", type=list, help="chains to extract, e.g.: [\"\'x\'\",\"\'y\'\"] or [\\'x\\',\\'y\\']")
+    parser.add_argument("-c", "--chains", nargs='+', help="chains to extract")
 
     return parser.parse_args()
 
@@ -70,10 +70,14 @@ def main():
                    'TYR': 'Y',
                    'VAL': 'V'}
     
-    dna = {'DG': 'G',
+    dna = {'G': 'G',
+           'A': 'A',
+           'T': 'T',
+           'C': 'C',
+           'DG': 'G',
            'DA': 'A',
            'DT': 'T',
-           'DC': 'C', 
+           'DC': 'C',           
            'GUA': 'G', 
            'ADE': 'A', 
            'THY': 'T', 
@@ -108,7 +112,7 @@ def main():
         resA = 0
         residue_list = []
         
-        ## create a sorted list of the residues
+        # create a sorted list of the residues
         for (i, resB) in enumerate(chain_mol.resid()):
             if resB != resA:
                 # print 'chain_mol.resname()[i]:', chain_mol.resname()[i]
@@ -137,7 +141,7 @@ def main():
             elif chain_mol.moltypes() == ['dna']:
                 for (i, res) in enumerate(residue_sequence):
                     outFile.write(dna[res.resname])
-                    print 'printed', dna[res.resname], 'to', chain_name, '.seq'
+                    # print 'printed', dna[res.resname], 'to', chain_name, '.seq'
                     if 0 == (i + 1) % 50:
                         outFile.write('\n')
             else:
