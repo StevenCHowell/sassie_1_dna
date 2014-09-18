@@ -3,7 +3,7 @@
 # Author:   --<Steven Howell>
 # Purpose:  Generate modified DNA or DNA-protein structures
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.40 2014-09-10 20:10:26 schowell Exp $
+# $Id: cgDNA_move.py,v 1.41 2014-09-18 14:43:09 schowell Exp $
 
 #0000000011111111112222222222333333333344444444445555555555666666666677777777778
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
@@ -603,6 +603,8 @@ def p_energy_wca(w, coor, wca0, trial_bead):
             #s print '(2^(1/6)*w, rij) = ', (test, rij)
             if rij < test:
                 wca1[i, j] = (w/rij)**12.-(w/rij)**6.+0.25
+            else:
+                wca1[i, j] = 0
     res = 4*np.sum(wca1)
     #s print 'U_wca =', res*4
     return (res, wca1)
@@ -655,7 +657,7 @@ def mask2ind(mask):
 
     return mask_indices
 
-def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
+def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
            beadgroups, group_masks, all_beads, dna_bead_masks, aa_pgroup_masks,
            cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask,
            dna_type='b'):
@@ -704,10 +706,19 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
     p_coor = np.copy(cg_pro.coor()[0]) # unique memory for each
 
     (u, l) = checkU(d_coor) # vectors between beads u, and average distance l
+    #s print "(u, l) =", (u, l) # debug info
     lpl = lp/l  # setup the presistence length paramater
 
-    dna_energy_width = {'a': 0, 'b': 46, 'z': 0} # yet to set a, and z
+    dna_energy_width = {'a': 0, 'b': 46., 'z': 0} # yet to use a, and z type dna
     w = dna_energy_width[dna_type.lower()]
+    if w > l:
+        print '~~~ Warning ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
+        print '~~~ chain width > distance btwn beads ~~~'
+        print '~~~ %.2f > %.2f ~~~~~~~~~~~~~~~~~~~~~~~~' % (w, l)
+        print '~~~ WCA energy will be skewed ~~~~~~~~~~~'
+        print '~~~ setting w = %d  ~~~~~~~~~~~~~~~~~~~~~~' % np.floor(l)
+        w = np.floor(l)
+        time.sleep(01.)
 
     dna_diam = {'a': 25.5, 'b': 23.7, 'z': 18.4}
     dna_bead_radius = 5.0
@@ -727,7 +738,8 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
         (Uwca0, wca0) = p_energy_wca(w, d_coor, wca0, 0)
 
     U_T0 = Ub0 + Uwca0
-
+    # print '(Ub0, Uwca0, Ub0/U_T0, Uwca0/U_T0) = ', (Ub0, Uwca0, Ub0/U_T0, 
+    #                                                 Uwca0/U_T0)
     n_accept   = 0 # total times configuration was accepted
     n_reject   = 0 # total times configuration was rejected
     n_written  = 0 # total times dcd write has been called
@@ -753,6 +765,7 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
         thetaX = 2 * theta_max  * np.random.random() - theta_max
         thetaY = 2 * theta_max  * np.random.random() - theta_max
         thetaXYZ = [thetaX/ARGS.n_soft, thetaY/ARGS.n_soft, thetaZ/ARGS.n_soft]
+        print theta_max, thetaXYZ
 
         if  len(group_masks) == 0 or beadgroups[trial_bead] == len(group_masks):
             # Only DNA will be moving, create place-holder dummy coordinates
@@ -780,7 +793,7 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
         if ARGS.f_collide:
             (Uwca1, wca1) = f_energy_wca(w, d_coor, wca0, trial_bead)
         else:
-            #(Uwca1, wca1) = p_energy_wca(w, d_coor, wca0, trial_bead)
+            (Uwca1, wca1) = p_energy_wca(w, d_coor, wca0, trial_bead)
             print "python wca calculator deprecated"
 
         U_T1 =  Ub1 + Uwca1
@@ -790,6 +803,9 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
             warnings.filterwarnings('error') # need this for np warnings
             try:
                 p = np.exp(-dU)
+                # print '\n(Ub1, Uwca1) = ', (Ub1, Uwca1) 
+                # print '(Ub1/U_T1, Uwca1/U_T1) = ', (Ub1/U_T1, Uwca1/U_T1)
+                # print '(p, dU) = ', (p, dU)
             except Warning:
                 if dU > 99:
                     p =  0
@@ -885,7 +901,7 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
                 aa_all.write_dcd_step(aa_all_dcd_out, 0, n_written)
                 
         else :
-            # by default ARGS.goback is -1 so this returns FALSE
+            # by default ARGS.goback is -1 so this returns FALSE without input
             if fail_tally == ARGS.goback:  
                 i_goback = rewind(ARGS, n_accept, cg_dna_dcd_name,
                             cg_dna, cg_pro_dcd_name, cg_pro, vecX_dcd_name, 
@@ -895,7 +911,7 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
                 d_coor = np.copy(cg_dna.coor()[0]) # reset the dna coordinates
 
                 # reset the reference energy
-                (u, l) = checkU(d_coor) # vectors between beads u, and average distance l
+                (u, l) = checkU(d_coor) 
                 (Uwca0, wca0) = f_energy_wca(w, d_coor, wca0, 0)
                 Ub0 = energyBend(lpl, u, l)
                 U_T0 =  Ub0 + Uwca0
@@ -904,8 +920,8 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
                 n_reload.append(steps_from_0[i_goback-1])
                 fail_tally = 0 # reset the fail counter
             else:
-                fail_tally += 1                    # increment bead reject counter 
-                n_reject += 1                      # increment total reject counter
+                fail_tally += 1                 # increment bead reject counter 
+                n_reject += 1                   # increment total reject counter
                 d_coor = np.copy(cg_dna.coor()[0]) # reset the dna coordinates
                 
             p_coor = np.copy(cg_pro.coor()[0]) # reset the protein coordinates
@@ -929,14 +945,18 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
     os.remove(vecY_dcd_name) # remove/comment to keep the cg pro coor   
     os.remove(vecZ_dcd_name) # remove/comment to keep the cg pro coor       
 
-    np.savetxt(timestr+'n_from_0.txt', steps_from_0, fmt='%d')
+    if ARGS.goback > 0:
+        np.savetxt(timestr+'n_from_0.txt', steps_from_0, fmt='%d')
+        
     print "accepted %d moves" % n_accept
     print "rejected %d moves" % n_reject
 
-    print n_reload
-    print steps_from_0
+    # print n_reload
+    # print steps_from_0
 
-def rewind(ARGS, n_accept, cg_dna_dcd_name, cg_dna, cg_pro_dcd_name, cg_pro, vecX_dcd_name, vecX_mol, vecY_mol, vecY_dcd_name, vecZ_mol, vecZ_dcd_name, vecXYZ):
+def rewind(ARGS, n_accept, cg_dna_dcd_name, cg_dna, cg_pro_dcd_name, cg_pro, 
+           vecX_dcd_name, vecX_mol, vecY_mol, vecY_dcd_name, vecZ_mol,
+           vecZ_dcd_name, vecXYZ):
     
     if ARGS.seed > 0:
         np.random.seed(ARGS.seed)
@@ -957,9 +977,9 @@ def rewind(ARGS, n_accept, cg_dna_dcd_name, cg_dna, cg_pro_dcd_name, cg_pro, vec
     vecXYZ[2] = vecZ_mol.coor()[0]                
 
     if i_goback == 0:
-        print '\n>>> reloaded original coordinates <<<\n'
+        print '\n~~~ reloaded original coordinates ~~~\n'
     else:	
-        print '\n>>> reloaded accepted coordinates #%d <<<\n' % i_goback
+        print '\n~~~ reloaded accepted coordinates #%d ~~~\n' % i_goback
         
     return i_goback
 
@@ -1006,13 +1026,11 @@ def parse():
         #epilog = 'no epilog found'
     )
     parser.add_argument("--seed", default=0, type=int,
-        help = ("Seed for generating random number for go-back routine") )
+        help = ("Seed for generating random number for go-back routine "
+                "(default: use system time)") )
     parser.add_argument("-gb", "--goback", default=-1, type=int,
         help = ("Number of fails before going back to previously accepted "
                 "structure. Input should be > 0, default = -1 (off)") )
-    parser.add_argument("-rs", "--rstep", default=0, type=int,
-        help = ("Number of steps to rewind when rewinding to previous structure"
-                " -->REWIND CURRENTLY NOT YET IMPLEMENTED<--") )
     parser.add_argument("-nd", "--n_dcd_write", default=1, type=int,
         help = ("Number of Monte Carlo steps before saving a dcd step; "
               "default = 1"))
@@ -1134,9 +1152,10 @@ def read_flex_resids(flex_file):
 def main():
 
     # set the DNA properties parameters:
-    lp = 0.53     # persistence length  (lp = 530A)
-    w = 46        # effective measure of dsDNA chain width in A (w = 46A)
-    #DOI 10.1021/ma201277e used w=46, lp=53
+    lp = 530.     # persistence length  (lp = 530A)
+    # defined in dna_mc
+    #w = 46        # effective measure of dsDNA chain width in A (w = 46A)
+    #DOI 10.1021/ma201277e used w=46, lp=530
 
     if ARGS.f_collide:
         print 'using fortran collision calculation'
@@ -1224,9 +1243,6 @@ def main():
             dna_resids.append([1, 60]) # DNA base pairing
             dna_resids.append([120, 61]) # DNA base pairing
             flex_resids = [range(16, 45)]
-            ARGS.theta_max = [10]
-            ARGS.bp_per_bead = 3
-            ARGS.n_soft = 1
  
         elif ARGS.pdb == 'new_dsDNA.pdb':
             # linker dna file
@@ -1235,7 +1251,7 @@ def main():
             dna_resids.append([30, 1]) # DNA base pairing
             flex_resids = [range(1, 31)]
         else:
-            print "\n>>> ERROR, unknow pdb file input <<<\n"
+            print "\n~~~ ERROR, unknow pdb file input ~~~\n"
 
         tic = time.time()
 
@@ -1257,7 +1273,7 @@ def main():
 
 
     tic = time.time()
-    dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, w, trialbeads,
+    dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
            beadgroups, move_masks, all_beads, dna_bead_masks, aa_pgroup_masks,
            cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask)
     toc = time.time() - tic; print 'run time =', toc, 'seconds'

@@ -1,4 +1,4 @@
-C $Id: collision.f,v 1.3 2014-09-02 12:34:08 schowell Exp $
+C $Id: collision.f,v 1.4 2014-09-18 14:43:09 schowell Exp $
 C         1         2         3         4         5         6         7
 C123456789012345678901234567890123456789012345678901234567890123456789012
 
@@ -48,6 +48,8 @@ C    running in
 
                if(rij . LT . cutoff) then
                   wca(i,j)=(w/rij)**12.-(w/rij)**6.+0.25
+               else
+                  wca(i,j)=0                 
                end if
   100   continue
   200   continue
@@ -88,6 +90,8 @@ cf2py intent(hide):: x1,y1,z1
 
                if(rij . LT . cutoff) then
                   wca(i,j)=(w/rij)**12.-(w/rij)**6.+0.25
+               else
+                  wca(i,j)=0                 
                end if
   100   continue
   200   continue
@@ -128,6 +132,8 @@ cf2py intent(hide):: x1,y1,z1
 
                if(rij . LT . cutoff) then
                   wca(i,j)=(w/rij)**12.-(w/rij)**6.+0.25
+               else
+                  wca(i,j)=0
                end if
   100   continue
   200   continue
