@@ -3,7 +3,7 @@
 # Author:   --<Steven Howell>
 # Purpose:  Generate modified DNA or DNA-protein structures
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.41 2014-09-18 14:43:09 schowell Exp $
+# $Id: cgDNA_move.py,v 1.42 2014-09-22 15:07:41 schowell Exp $
 
 #0000000011111111112222222222333333333344444444445555555555666666666677777777778
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
@@ -1078,7 +1078,7 @@ def parse():
 
     return parser.parse_args()
 
-def write_flex_resids(all_beads, ARGS):
+def write_flex_resids(all_beads, flex_beads, ARGS):
     '''
     Write the segnames names and resids of a list of sasmol objects to file
     Designed to be used for a list of sasmol objects representing coarse-grained
@@ -1092,9 +1092,10 @@ def write_flex_resids(all_beads, ARGS):
     dna2_bead_labels = []
     dna_bead_labels = [dna1_bead_labels, dna2_bead_labels]
 
-    b_per_bead = np.zeros((len(all_beads)), dtype='int')
+    bases_per_bead = np.zeros((len(flex_beads)), dtype='int')
     fewer_bp = []
-    for (i, bead) in enumerate(all_beads):
+    for (i, flex_bead) in enumerate(flex_beads):
+        bead = all_beads[flex_bead]
         for (j, label) in enumerate(bead.segnames()):
             basis_filter = "((segname[i]=='"+label+"'))"
             error, dna_strand_mask = bead.get_subset_mask(basis_filter)
@@ -1103,10 +1104,10 @@ def write_flex_resids(all_beads, ARGS):
             # dna1_bead_labels.append(all_beads[i].segnames()[0])
             dna_bead_labels[j].append(dna.segnames()[0])
             dna_bead_resids[j].append(dna.resids())
-            b_per_bead[i] += len(dna.resids())
-        if b_per_bead[i] < b_per_bead[0]:
+            bases_per_bead[i] += len(dna.resids())
+        if bases_per_bead[i] < bases_per_bead[0]:
             fewer_bp.append(i)
-            n_fewer = b_per_bead[0]/2 - b_per_bead[i]/2
+            n_fewer = bases_per_bead[0]/2 - bases_per_bead[i]/2
             print '%d fewer bases in bead %d than the others' % (n_fewer, i + 1)
             print 'appending 0 to the flex file'
             for j in  xrange(n_fewer):
@@ -1121,7 +1122,7 @@ def write_flex_resids(all_beads, ARGS):
     flex_id_out = open(ARGS.pdb[:-3]+'flex', 'w')
     flex_id_out.write('%s %s\n' % (dna1_label[0], dna2_label[0]))
 
-    n_flex_bp = len(all_beads)*b_per_bead[0] / 2
+    n_flex_bp = len(flex_beads)*bases_per_bead[0] / 2
     dna1_resids = np.reshape(np.array(dna1_bead_resids), n_flex_bp)
     dna2_resids_temp = np.reshape(np.array(dna2_bead_resids), n_flex_bp)
     dna2_resids_temp.sort()
@@ -1144,8 +1145,8 @@ def read_flex_resids(flex_file):
     '''
     lines = [line.strip() for line in open(flex_file)]
     segnames = []
-    segnames.append(lines[0][0])
-    segnames.append(lines[0][-1])
+    segnames.append(lines[0].split()[0])
+    segnames.append(lines[0].split()[1])
     flex_resids = np.genfromtxt(flex_file, dtype='int',delimiter=" ")[1:]
     return (segnames, flex_resids)
 
@@ -1269,7 +1270,7 @@ def main():
         toc = time.time() - tic ; print 'coarse-grain time =', toc, 'seconds'
 
     if None == ARGS.Llp and ARGS.flex:
-        write_flex_resids(all_beads, ARGS)
+        write_flex_resids(all_beads, trialbeads, ARGS)
 
 
     tic = time.time()
