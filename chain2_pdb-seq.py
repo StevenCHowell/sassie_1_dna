@@ -1,8 +1,8 @@
-#!/usr/bin/env python
+ #!/usr/bin/env python
 # Author:  Steven C. Howell
 # Purpose: Prepare PDB for modeling
 # Created: 04/24/2014
-# $Id: chain2_pdb-seq.py,v 1.2 2014-09-10 20:10:27 schowell Exp $
+# $Id: chain2_pdb-seq.py,v 1.3 2014-09-26 14:00:16 schowell Exp $
 '''
 This script creates a separate pdb for each chain of 'aa_pdb'
 It also creates a sequence file for the residue sequence of that chain

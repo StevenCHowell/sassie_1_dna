@@ -3,7 +3,7 @@
 # Author:   --<Steven Howell>
 # Purpose:  Generate modified DNA or DNA-protein structures
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.42 2014-09-22 15:07:41 schowell Exp $
+# $Id: cgDNA_move.py,v 1.43 2014-09-26 14:00:16 schowell Exp $
 
 #0000000011111111112222222222333333333344444444445555555555666666666677777777778
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
@@ -86,36 +86,56 @@ def make_cg_model(ARGS, all_atom_pdb, dna_segnames, dna_resids, l, pro_groups):
     flexResids = np.concatenate(([flexResids], [groupid]),0).T
 
     print "coarse-graining the DNA, this may take awhile..."
+    tic = time.time()
     for j in xrange(nbeads):
-        if j+1 == nbeads:
-            ARGS.bp_per_bead = bps - ARGS.bp_per_bead*j  # account for remainder
 
         bead = sasmol.SasMol(0)
+        if ARGS.bp_per_bead > 1:
+            if j+1 == nbeads:
+                ARGS.bp_per_bead = bps - ARGS.bp_per_bead*j  # account for remainder
 
-        # Get the atoms from DNA strand 1
-        if resid1[0] < resid1[1]:
-            r1b = r1a + ARGS.bp_per_bead  # r1b > r1a
-            basis_filter1 = ("((resid[i] > "+str(r1a-1)+" and "
-                             "resid[i] < "+str(r1b)+") and "
-                             "(segname[i]=='"+dna1+"')) or ")
+            # Get the atoms from DNA strand 1
+            if resid1[0] < resid1[1]:
+                r1b = r1a + ARGS.bp_per_bead  # r1b > r1a
+                basis_filter1 = ("((resid[i] > "+str(r1a-1)+" and "
+                                 "resid[i] < "+str(r1b)+") and "
+                                 "(segname[i]=='"+dna1+"')) or ")
+            else:
+                r1b = r1a - ARGS.bp_per_bead  # r1b < r1a
+                basis_filter1 = ("((resid[i] > "+str(r1b)+" and "
+                                 "resid[i] < "+str(r1a+1)+") and "
+                                 "(segname[i]=='"+dna1+"')) or ")
+    
+            # Get the atoms from DNA strand 2
+            if resid2[0] < resid2[1]:
+                r2b = r2a + ARGS.bp_per_bead  # r2b > r2a
+                basis_filter2 = ("((resid[i] > "+str(r2a-1)+" and "
+                                 "resid[i] < "+str(r2b)+") and "
+                                 "(segname[i]=='"+dna2+"'))")
+            else:
+                r2b = r2a - ARGS.bp_per_bead   # r2b < r2a
+                basis_filter2 = ("((resid[i] > "+str(r2b)+" and "
+                                 "resid[i] < "+str(r2a+1)+") and "
+                                 "(segname[i]=='"+dna2+"'))")
         else:
-            r1b = r1a - ARGS.bp_per_bead  # r1b < r1a
-            basis_filter1 = ("((resid[i] > "+str(r1b)+" and "
-                             "resid[i] < "+str(r1a+1)+") and "
+            # Get the atoms from DNA strand 1
+            if resid1[0] < resid1[1]:
+                r1b = r1a + ARGS.bp_per_bead  # r1b > r1a
+            else:
+                r1b = r1a - ARGS.bp_per_bead  # r1b < r1a
+            
+            basis_filter1 = ("((resid[i] == "+str(r1a)+") and "
                              "(segname[i]=='"+dna1+"')) or ")
+    
+            # Get the atoms from DNA strand 2
+            if resid2[0] < resid2[1]:
+                r2b = r2a + ARGS.bp_per_bead  # r2b > r2a
+            else:
+                r2b = r2a - ARGS.bp_per_bead   # r2b < r2a
 
-        # Get the atoms from DNA strand 2
-        if resid2[0] < resid2[1]:
-            r2b = r2a + ARGS.bp_per_bead  # r2b > r2a
-            basis_filter2 = ("((resid[i] > "+str(r2a-1)+" and "
-                             "resid[i] < "+str(r2b)+") and "
+            basis_filter2 = ("((resid[i]== "+str(r2a)+") and "
                              "(segname[i]=='"+dna2+"'))")
-        else:
-            r2b = r2a - ARGS.bp_per_bead   # r2b < r2a
-            basis_filter2 = ("((resid[i] > "+str(r2b)+" and "
-                             "resid[i] < "+str(r2a+1)+") and "
-                             "(segname[i]=='"+dna2+"'))")
-
+            
         basis_filter = basis_filter1+basis_filter2
 
         # create a mask to select the atoms for the bead
@@ -669,13 +689,15 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
     all_dcd_name = timestr + ARGS.pdb[:-4] + '.dcd'
     aa_all_dcd_out = aa_all.open_dcd_write(all_dcd_name)
 
-    # create the coarse-grained DNA and protein dcd files
+    # create the coarse-grained DNA and protein dcd and pdb files
     cg_dna_dcd_name = timestr + 'cg_dna.dcd'
     cg_pro_dcd_name = timestr + 'cg_pro.dcd'    
     cg_dna_dcd_out = cg_dna.open_dcd_write(cg_dna_dcd_name)
     cg_pro_dcd_out = cg_pro.open_dcd_write(cg_pro_dcd_name)    
     cg_dna.write_dcd_step(cg_dna_dcd_out, 0, 1)
     cg_pro.write_dcd_step(cg_pro_dcd_out, 0, 1)    
+    cg_dna.write_pdb(timestr + 'cg_dna.pdb', 0, 'w')
+    cg_pro.write_pdb(timestr + 'cg_pro.pdb', 0, 'w')    
     
     # create a dummy sasmol object for the 3 orientation vectors for each bead
     # will write these out to dcd files to store the coordinates along the way
@@ -760,7 +782,7 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
 
         # Determine rotation to perform
         theta_max = ARGS.theta_max[beadgroups[trial_bead]]
-        thetaZ_max = np.float(theta_max) # scale thetaZ separatly here
+        thetaZ_max = np.float(15) # scale thetaZ separatly here
         thetaZ = 2 * thetaZ_max * np.random.random() - thetaZ_max
         thetaX = 2 * theta_max  * np.random.random() - theta_max
         thetaY = 2 * theta_max  * np.random.random() - theta_max
@@ -939,6 +961,8 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
     
     # cg_dna.close_dcd_write(cg_dna_dcd_out) #uncomment if wanting to keep
     # cg_pro.close_dcd_write(cg_pro_dcd_out) #uncomment if wanting to keep
+    os.remove(timestr + 'cg_dna.pdb')
+    os.remove(timestr + 'cg_pro.pdb')    
     os.remove(cg_dna_dcd_name) # remove/comment to keep the cg dna coor
     os.remove(cg_pro_dcd_name) # remove/comment to keep the cg pro coor   
     os.remove(vecX_dcd_name) # remove/comment to keep the cg pro coor   
@@ -1034,24 +1058,29 @@ def parse():
     parser.add_argument("-nd", "--n_dcd_write", default=1, type=int,
         help = ("Number of Monte Carlo steps before saving a dcd step; "
               "default = 1"))
-    parser.add_argument("-n", "--nsteps", default=10, type=int,
-        help = ("Number of Monte Carlo steps to perform; default = 10"))
+    parser.add_argument("-n", "--nsteps", default=100, type=int,
+        help = ("Number of Monte Carlo steps to perform; default = 100"))
     #    parser.add_argument("-s", "--show", action="store_true",
     #        help="show a plot of the configuration after each iteration")
     parser.add_argument("-tm", "--theta_max", nargs='+', type=np.float,
         help = ("Max rotation angle for the x and y rotation; "
                 "max z scales with this paramater (curently 1x but code is "
                 "designed to allow max z to scale differently from max x and "
-                "y); default = 5"), default=[5])
+                "y); default = 5"), default=[25])
     parser.add_argument("-ns", "--n_soft", default=1, type=int,
         help = ("Number of bead over which to apply any rotation (i.e. soften "
                 "the bending); default = 1") )
-    parser.add_argument("-bp", "--bp_per_bead", default=3, type=int,
-        help = "Number of bp for each coarse-grained bead; default = 3")
+    parser.add_argument("-bp", "--bp_per_bead", default=1, type=int,
+        help = "Number of bp for each coarse-grained bead; default = 1")
     parser.add_argument("-fl", "--flex", default=False, action="store_true",
         help = ("Generate output file with the flexible resids formatted into "
                 "2 columns.  The first row contains the segnames for the 2 "
                 "DNA strands; default = False"))
+
+    parser.add_argument("--size", default='med', type=str,
+                        help="selection for new_c11h5.pdb flexible residues")
+    parser.add_argument("--regions", default='1-5', type=str,
+                        help="selection for new_c11h5.pdb flexible regions")
 
     # I would like to implement a storage to not need to repeat cg each run
     # parser.add_argument("-c", "--cgpdb", help="coarse-grained pdb file")
@@ -1218,16 +1247,38 @@ def main():
                  range(507, 524), range(674, 694)]
             large_range = [range(1, 31), range(167, 198), range(334, 365),
                  range(501, 532), range(667, 694)]
-            flex_resids = large_range
-            two_four = []
-            for item in flex_resids:
-                two_four.append(item)
-            two_four[0] = two_four[4] = two_four[2] = []
-            two_three = []
-            for item in two_four:
-                two_three.append(item)
-            two_three[3] = []
-            flex_resids = two_four
+
+            # CHANGE SETTINGS HERE #
+            ARGS.size = 'large'
+            ARGS.regions = '1-5'
+            # CHANGE SETTINGS HERE #
+
+            if ARGS.size == 'large':
+                flex_resids = large_range
+            elif ARGS.size == 'med':
+                flex_resids = med_range
+            elif ARGS.size == 'small':
+                flex_resids = small_range
+            elif ARGS.size == 'xlarge':
+                flex_resids = xlarge_range
+            else:
+                print 'unknown selection for size: ', size
+                
+            if ARGS.regions == '1-5':         # 1-5 option
+                flex_resids = flex_resids
+            elif ARGS.regions == '234':       # 2-4 option
+                flex_resids[0] = flex_resids[4] = []
+            elif ARGS.regions == '2_4':       # 2, 4 option
+                flex_resids[0] = flex_resids[4] = flex_resids[2] = []
+            elif ARGS.regions == '23_':       # 2-3 option
+                flex_resids[0] = flex_resids[4] = flex_resids[3] = []
+            elif ARGS.regions == '2__':       # 2 option
+                flex_resids[0] = flex_resids[4] = flex_resids[3] = flex_resid[2] = []
+            elif ARGS.regions == '_3_':       # 3 option
+                flex_resids[0] = flex_resids[4] = flex_resids[3] = flex_resid[1] = []
+            else:
+                print 'unknown selection for flex: ', ARGS.regions
+                
             pro_groups.append(['A0', 'B0', 'C0', 'D0',
                                'E0', 'F0', 'G0', 'H0', 'H5N1'])
             pro_groups.append(['A1', 'B1', 'C1', 'D1',
@@ -1236,7 +1287,7 @@ def main():
                                'Q1', 'R1', 'S1', 'T1', 'H5N3'])
             pro_groups.append(['M0', 'N0', 'O0', 'P0',
                                'Q0', 'R0', 'S0', 'T0', 'H5N4'])
-            ARGS.theta_max = [10, 10, 10, 10, 10]
+            ARGS.theta_max = [25, 25, 25, 25, 25]
 
         elif ARGS.pdb == 'new_dsDNA60.pdb':
             # linker dna file
