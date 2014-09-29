@@ -1,4 +1,4 @@
-# $Id: survey_distances.py,v 1.1 2014-09-22 15:07:41 schowell Exp $
+# $Id: survey_distances.py,v 1.2 2014-09-29 19:00:23 schowell Exp $
 import os,sys,locale,string,numpy as np,math
 import sassie.sasmol.sasmol as sasmol
 import collision
@@ -96,7 +96,7 @@ def get_distances2(m1, basis1, basis2):
         print 'coor error = ',error
 
 
-    return calc_dist2(coor1[0], coor2[0])
+    return f_calc_dist2(coor1[0], coor2[0])
 
 def plot_historam(dist_array,title, N_bins):
 
@@ -124,9 +124,9 @@ def plot_historam(dist_array,title, N_bins):
 
 if __name__ == '__main__':
 
-    pdbfile = 'new_dsDNA.pdb'       # no proteins
-    pdbfile = '1zbb_tetra_half.pdb' # not minimized
-    pdbfile = 'c11_withTails.pdb'   # wrong file
+    # pdbfile = 'new_dsDNA.pdb'       # no proteins
+    # pdbfile = '1zbb_tetra_half.pdb' # not minimized
+    # pdbfile = 'c11_withTails.pdb'   # wrong file (bad structure)
     pdbfile = 'new_c11_tetramer.pdb'
     m1 = sasmol.SasMol(0)
     m1.read_pdb(pdbfile)
@@ -140,15 +140,16 @@ if __name__ == '__main__':
 
     print 'DNA-Protein results:'
     basis1 = 'name[i] == "CA"' #protein CA atoms
-    basis2 = 'name[i] == "P"' #dna P atoms
+    basis2 = 'name[i] == "P"'  #dna P atoms
     dna_protein_distances = get_distances2(m1, basis1, basis2)
     print 'min distance ',min(dna_protein_distances)
     print 'max distance ',max(dna_protein_distances)
+    print 'pause'
     plot_historam(dna_protein_distances,'DNA-Protein Distances', len(dna_protein_distances)/100)
 
     #print 'Backbone results:'
     #basis = 'name[i] == "C" or name[i] == "O" or name[i] == "P"' #dna
-    ##basis = 'name[i] == "N" or name[i] == "CA" or name[i] == "C"' #protein
+    # #basis = 'name[i] == "N" or name[i] == "CA" or name[i] == "C"' #protein
     #backbone_distances = get_distances(m1,basis)
     #print 'min distance ',min(backbone_distances)
     #print 'max distance ',max(backbone_distances)

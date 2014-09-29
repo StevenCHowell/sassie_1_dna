@@ -3,13 +3,17 @@
 # Author:   --<Steven Howell>
 # Purpose:  Generate modified DNA or DNA-protein structures
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.43 2014-09-26 14:00:16 schowell Exp $
+# $Id: cgDNA_move.py,v 1.44 2014-09-29 19:00:23 schowell Exp $
 
 #0000000011111111112222222222333333333344444444445555555555666666666677777777778
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
 
 import sassie.sasmol.sasmol as sasmol, numpy as np
 import collision, random, warnings, time, os
+try: 
+    import cPickle as pickle
+except:
+    import pickle as pickle
 
 ''' modules I had imported once but no longer need (hopefully)'''
 # import os.path as op
@@ -573,9 +577,9 @@ def checkU(coor):
     #print 'average magnitude of u =', l
     #print '\n\n'
 
-    test = np.abs(lu-l) > erLim  # check if any of the l-lengths are different
     # Commented this out because it did not work for real DNA because base pairs
     # did not always start evenly spaced apart
+    #s test = np.abs(lu-l) > erLim  # check if any of the l-lengths are different
     #s if test.any():
     #s         print 'ERROR: the beads are not uniformly spaced'
     #s         print 'u = \n', u
@@ -734,13 +738,10 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
     dna_energy_width = {'a': 0, 'b': 46., 'z': 0} # yet to use a, and z type dna
     w = dna_energy_width[dna_type.lower()]
     if w > l:
-        print '~~~ Warning ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
-        print '~~~ chain width > distance btwn beads ~~~'
-        print '~~~ %.2f > %.2f ~~~~~~~~~~~~~~~~~~~~~~~~' % (w, l)
-        print '~~~ WCA energy will be skewed ~~~~~~~~~~~'
-        print '~~~ setting w = %d  ~~~~~~~~~~~~~~~~~~~~~~' % np.floor(l)
         w = np.floor(l)
-        time.sleep(01.)
+        # print '~~~ %.2f > %.2f ~~~~~~~~~~~~~~~~~~~~~~~~' % (w, l)
+        print ('>>> setting chain width (w) to %d (chain width < distance' %w,
+               ' btwn beads)')
 
     dna_diam = {'a': 25.5, 'b': 23.7, 'z': 18.4}
     dna_bead_radius = 5.0
@@ -782,12 +783,12 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
 
         # Determine rotation to perform
         theta_max = ARGS.theta_max[beadgroups[trial_bead]]
-        thetaZ_max = np.float(15) # scale thetaZ separatly here
+        thetaZ_max = np.float(theta_max) # option to scale thetaZ separatly
         thetaZ = 2 * thetaZ_max * np.random.random() - thetaZ_max
         thetaX = 2 * theta_max  * np.random.random() - theta_max
         thetaY = 2 * theta_max  * np.random.random() - theta_max
         thetaXYZ = [thetaX/ARGS.n_soft, thetaY/ARGS.n_soft, thetaZ/ARGS.n_soft]
-        print theta_max, thetaXYZ
+        # print theta_max, thetaXYZ
 
         if  len(group_masks) == 0 or beadgroups[trial_bead] == len(group_masks):
             # Only DNA will be moving, create place-holder dummy coordinates
@@ -859,17 +860,19 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
                     print 'Protein-Protein'
                     #print 'collisioin, set p=0'
                     collision = 1
+                
+                print 'currently ignoring DNA-protein overlap'
+                # # check for DNA-protein overlap
+                # elif 1 == f_overlap2(p_coor_rot, d_coor_fix, dna_pro_test):
+                    # print 'Potein-DNA (rot-fix)'
+                    # #print 'collision, set p=0'
+                    # collision = 1
+                    # print 'ignoring this for now'
 
-                # check for DNA-protein overlap
-                elif 1 == f_overlap2(p_coor_rot, d_coor_fix, dna_pro_test):
-                    print 'Potein-DNA (rot-fix)'
-                    #print 'collision, set p=0'
-                    collision = 1
-
-                elif 1 == f_overlap2(p_coor_fix, d_coor_rot, dna_pro_test):
-                    print 'Potein-DNA (fix-rot)'
-                    #print 'collision, set p=0'
-                    collision = 1
+                # elif 1 == f_overlap2(p_coor_fix, d_coor_rot, dna_pro_test):
+                    # print 'Potein-DNA (fix-rot)'
+                    # #print 'collision, set p=0'
+                    # collision = 1
 
                 # if collision == 1:
                     # print 'failed because of collision'
@@ -1082,8 +1085,8 @@ def parse():
     parser.add_argument("--regions", default='1-5', type=str,
                         help="selection for new_c11h5.pdb flexible regions")
 
-    # I would like to implement a storage to not need to repeat cg each run
-    # parser.add_argument("-c", "--cgpdb", help="coarse-grained pdb file")
+    parser.add_argument("-rp", "--rm_pkl", default=False, action="store_true",
+                        help="remove the pkl file containing cg parameters")
 
     parser.add_argument("-f", dest="f_collide", action='store_true',
         help="use fortran module for calculating collisions; the default")
@@ -1235,12 +1238,8 @@ def main():
             dna_resids.append([1, 693])
             dna_resids.append([693, 1])
             # continuous flexible residues on the first DNA strand
-            # recall that range(a, b) excludes upper lim: [a, b)
             #s flex_resids = [range(1, 31), range(167, 198), range(334, 365),
             #s     range(501, 532), range(667, 694)]
-            #s flex_resids = [range(1, 31), range(167, 198)]
-            #s flex_resids = [range(1, 31), range(167, 198), range(334, 365),
-            #s      range(501, 532), range(667, 694)]
             small_range = [range(1, 10), range(177, 180), range(344, 352),
                  range(513, 517), range(680, 694)]
             med_range   = [range(1, 20), range(172, 189), range(339, 357),
@@ -1249,8 +1248,7 @@ def main():
                  range(501, 532), range(667, 694)]
 
             # CHANGE SETTINGS HERE #
-            ARGS.size = 'large'
-            ARGS.regions = '1-5'
+            ARGS.size
             # CHANGE SETTINGS HERE #
 
             if ARGS.size == 'large':
@@ -1278,6 +1276,9 @@ def main():
                 flex_resids[0] = flex_resids[4] = flex_resids[3] = flex_resid[1] = []
             else:
                 print 'unknown selection for flex: ', ARGS.regions
+
+            print ('using regions ' + ARGS.regions + ' with a ' + ARGS.size + 
+                   ' size -> flex_resids = \n', flex_resids)
                 
             pro_groups.append(['A0', 'B0', 'C0', 'D0',
                                'E0', 'F0', 'G0', 'H0', 'H5N1'])
@@ -1287,7 +1288,7 @@ def main():
                                'Q1', 'R1', 'S1', 'T1', 'H5N3'])
             pro_groups.append(['M0', 'N0', 'O0', 'P0',
                                'Q0', 'R0', 'S0', 'T0', 'H5N4'])
-            ARGS.theta_max = [25, 25, 25, 25, 25]
+            ARGS.theta_max = [1, 1, 1, 1, 1]
 
         elif ARGS.pdb == 'new_dsDNA60.pdb':
             # linker dna file
@@ -1305,30 +1306,100 @@ def main():
         else:
             print "\n~~~ ERROR, unknow pdb file input ~~~\n"
 
+
+
+        pkl_file = ARGS.pdb[:-3] + 'pkl'
+
+        if os.path.isfile(pkl_file) and ARGS.rm_pkl:
+            print '>>> removing cg paramaters for %s: %s' % (ARGS.pdb, pkl_file)
+            os.remove(pkl_file)
+
         tic = time.time()
 
-        (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, all_beads, all_proteins,
-         trialbeads, beadgroups, dna_bead_masks, aa_pgroup_masks, move_masks,
-         cg_pgroup_masks, aa_all, aa_dna_mask, aa_pro_mask) = make_cg_model(
-             ARGS, all_atom_pdb, dna_segnames, dna_resids, flex_resids,
-             pro_groups)
-
-        # this is important for re-aligning the proteins after moving them
-        cg_pro_orig = sasmol.SasMol(0)
-        error = cg_pro.copy_molecule_using_mask(cg_pro_orig,
-                                            np.ones(len(cg_pro.coor()[0])), 0)
-
+        (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, trialbeads, beadgroups, 
+        move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, cg_pgroup_masks, 
+        all_proteins, aa_all, aa_pro_mask, aa_dna_mask) = get_cg_parameters(
+            pkl_file, flex_resids, all_atom_pdb, pro_groups, dna_resids, 
+            dna_segnames)
+        
         toc = time.time() - tic ; print 'coarse-grain time =', toc, 'seconds'
-
-    if None == ARGS.Llp and ARGS.flex:
-        write_flex_resids(all_beads, trialbeads, ARGS)
-
-
-    tic = time.time()
+        tic = time.time()
+        
     dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
            beadgroups, move_masks, all_beads, dna_bead_masks, aa_pgroup_masks,
            cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask)
     toc = time.time() - tic; print 'run time =', toc, 'seconds'
+
+    if None == ARGS.Llp and ARGS.flex:
+        write_flex_resids(all_beads, trialbeads, ARGS)
+
+def get_cg_parameters(pkl_file, flex_resids, all_atom_pdb, pro_groups, dna_resids, dna_segnames):
+    # if pickle_file exists:
+    if os.path.isfile(pkl_file):
+        print 'loading cg parameters for %s from: %s' % (ARGS.pdb, pkl_file)
+        # load pickle_file
+        pkl_in = open(pkl_file, 'rb')
+
+        cg_dna          = pickle.load(pkl_in)
+        aa_dna          = pickle.load(pkl_in)
+        cg_pro          = pickle.load(pkl_in)
+        aa_pro          = pickle.load(pkl_in)
+        vecXYZ          = pickle.load(pkl_in)
+        trialbeads      = pickle.load(pkl_in)
+        beadgroups      = pickle.load(pkl_in)
+        move_masks      = pickle.load(pkl_in)
+        all_beads       = pickle.load(pkl_in)
+        dna_bead_masks  = pickle.load(pkl_in)
+        aa_pgroup_masks = pickle.load(pkl_in)
+        cg_pgroup_masks = pickle.load(pkl_in)
+        all_proteins    = pickle.load(pkl_in)
+        aa_all          = pickle.load(pkl_in)
+        aa_pro_mask     = pickle.load(pkl_in)
+        aa_dna_mask     = pickle.load(pkl_in)
+        
+        pkl_in.close()
+        
+    else:
+        print 'cg %s and save the parameters to: %s' % (ARGS.pdb, pkl_file)
+        # create the pickle_file for future use
+        pkl_out = open(pkl_file, 'wb')
+    
+        (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, all_beads, all_proteins,
+         trialbeads, beadgroups, dna_bead_masks, aa_pgroup_masks, 
+         move_masks, cg_pgroup_masks, aa_all, aa_dna_mask, aa_pro_mask
+         ) = make_cg_model(ARGS, all_atom_pdb, dna_segnames, dna_resids, 
+                           flex_resids, pro_groups)
+
+        pickle.dump(cg_dna, pkl_out, -1)
+        pickle.dump(aa_dna, pkl_out, -1)
+        pickle.dump(cg_pro, pkl_out, -1)
+        pickle.dump(aa_pro, pkl_out, -1)
+        pickle.dump(vecXYZ, pkl_out, -1)
+        pickle.dump(trialbeads, pkl_out, -1)
+        pickle.dump(beadgroups, pkl_out, -1) 
+        pickle.dump(move_masks, pkl_out, -1) 
+        pickle.dump(all_beads, pkl_out, -1) 
+        pickle.dump(dna_bead_masks, pkl_out, -1)
+        pickle.dump(aa_pgroup_masks, pkl_out, -1) 
+        pickle.dump(cg_pgroup_masks, pkl_out, -1) 
+        pickle.dump(all_proteins, pkl_out, -1)  
+        pickle.dump(aa_all, pkl_out, -1)
+        pickle.dump(aa_pro_mask, pkl_out, -1)    
+        pickle.dump(aa_dna_mask, pkl_out, -1)    
+    
+        pkl_out.close()
+    
+    # this is important for re-aligning the proteins after moving them
+    cg_pro_orig = sasmol.SasMol(0)
+    error = cg_pro.copy_molecule_using_mask(cg_pro_orig,
+                                        np.ones(len(cg_pro.coor()[0])), 0)
+    
+    return (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, trialbeads, beadgroups, 
+            move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, 
+            cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask)
+
+
+
 
 
 
