@@ -3,7 +3,7 @@
 # Author:   --<Steven Howell>
 # Purpose:  Generate modified DNA or DNA-protein structures
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.44 2014-09-29 19:00:23 schowell Exp $
+# $Id: cgDNA_move.py,v 1.45 2014-10-06 17:56:56 schowell Exp $
 
 #0000000011111111112222222222333333333344444444445555555555666666666677777777778
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
@@ -15,40 +15,18 @@ try:
 except:
     import pickle as pickle
 
-''' modules I had imported once but no longer need (hopefully)'''
-# import os.path as op
-# import string
-# import locale
-# import subprocess
-# import sys ; sys.path.append('./')
-
-class MainError(Exception):
-    pass
-
-def make_cg_model(ARGS, all_atom_pdb, dna_segnames, dna_resids, l, pro_groups):
-    '''
-    this function creates a cg bead model from DNA strands supplied as input
-    make_cgDNA_model takes specific DNA to coarse grain as input
-    '''
-
-    # load in the all atom pdb
-    aa_all = sasmol.SasMol(0)
-    aa_all.read_pdb(all_atom_pdb)
-    natoms = aa_all.natoms() #; print 'natoms = ', natoms
-    print 'total atoms = ', natoms
-    frame = 0
-
-    #~~~ DNA ONLY SECTION ~~~#
+def make_cg_dna(dna_segnames, dna_resids, bp_per_bead, aa_all, frame=0):
     dna1 = dna_segnames[0]
     dna2 = dna_segnames[1]
     resid1 = dna_resids[0]
     resid2 = dna_resids[1]
+    
     # check the input
     assert np.abs(resid1[1]-resid1[0]) == np.abs(resid2[1]-resid2[0]), (
         "number of paired bases in DNA strands are not the same")
 
     bps = np.abs(resid1[1]-resid1[0])+1
-    nbeads = int(np.round(bps/float(ARGS.bp_per_bead)))
+    nbeads = int(np.round(bps/float(bp_per_bead)))
     #print 'nbeads = ', nbeads
 
     # load the dna into its own sasmol object
@@ -75,67 +53,54 @@ def make_cg_model(ARGS, all_atom_pdb, dna_segnames, dna_resids, l, pro_groups):
     r2a = resid2[0]
     all_beads = []       # list of the all atom sasmol object for each bead
     dna_bead_masks = []  # list of the all atom masks for each bead
-    link = np.zeros((nbeads-1, 2), dtype=int)  # links between DNA beads
-    # if a bead is designated flexible both it's links are flexible
-
-    # create an array (groupid) labeling the group for each flexible cg-DNA bead
-    flexResids = [item for sublist in l for item in sublist]
-    groupid = np.zeros(len(flexResids))
-    n_start = 0
-    for i in xrange(len(l)):
-        n_end = len(l[i]) + n_start
-        groupid[n_start:n_end] = np.ones(len(l[i])) * i
-        n_start = n_end
-
-    flexResids = np.concatenate(([flexResids], [groupid]),0).T
 
     print "coarse-graining the DNA, this may take awhile..."
     tic = time.time()
     for j in xrange(nbeads):
 
         bead = sasmol.SasMol(0)
-        if ARGS.bp_per_bead > 1:
+        if bp_per_bead > 1:
             if j+1 == nbeads:
-                ARGS.bp_per_bead = bps - ARGS.bp_per_bead*j  # account for remainder
+                bp_per_bead = bps - bp_per_bead*j  # account for remainder
 
             # Get the atoms from DNA strand 1
             if resid1[0] < resid1[1]:
-                r1b = r1a + ARGS.bp_per_bead  # r1b > r1a
+                r1b = r1a + bp_per_bead  # r1b > r1a
                 basis_filter1 = ("((resid[i] > "+str(r1a-1)+" and "
                                  "resid[i] < "+str(r1b)+") and "
                                  "(segname[i]=='"+dna1+"')) or ")
             else:
-                r1b = r1a - ARGS.bp_per_bead  # r1b < r1a
+                r1b = r1a - bp_per_bead  # r1b < r1a
                 basis_filter1 = ("((resid[i] > "+str(r1b)+" and "
                                  "resid[i] < "+str(r1a+1)+") and "
                                  "(segname[i]=='"+dna1+"')) or ")
     
             # Get the atoms from DNA strand 2
             if resid2[0] < resid2[1]:
-                r2b = r2a + ARGS.bp_per_bead  # r2b > r2a
+                r2b = r2a + bp_per_bead  # r2b > r2a
                 basis_filter2 = ("((resid[i] > "+str(r2a-1)+" and "
                                  "resid[i] < "+str(r2b)+") and "
                                  "(segname[i]=='"+dna2+"'))")
             else:
-                r2b = r2a - ARGS.bp_per_bead   # r2b < r2a
+                r2b = r2a - bp_per_bead   # r2b < r2a
                 basis_filter2 = ("((resid[i] > "+str(r2b)+" and "
                                  "resid[i] < "+str(r2a+1)+") and "
                                  "(segname[i]=='"+dna2+"'))")
         else:
             # Get the atoms from DNA strand 1
             if resid1[0] < resid1[1]:
-                r1b = r1a + ARGS.bp_per_bead  # r1b > r1a
+                r1b = r1a + bp_per_bead  # r1b > r1a
             else:
-                r1b = r1a - ARGS.bp_per_bead  # r1b < r1a
+                r1b = r1a - bp_per_bead  # r1b < r1a
             
             basis_filter1 = ("((resid[i] == "+str(r1a)+") and "
                              "(segname[i]=='"+dna1+"')) or ")
     
             # Get the atoms from DNA strand 2
             if resid2[0] < resid2[1]:
-                r2b = r2a + ARGS.bp_per_bead  # r2b > r2a
+                r2b = r2a + bp_per_bead  # r2b > r2a
             else:
-                r2b = r2a - ARGS.bp_per_bead   # r2b < r2a
+                r2b = r2a - bp_per_bead   # r2b < r2a
 
             basis_filter2 = ("((resid[i]== "+str(r2a)+") and "
                              "(segname[i]=='"+dna2+"'))")
@@ -149,80 +114,47 @@ def make_cg_model(ARGS, all_atom_pdb, dna_segnames, dna_resids, l, pro_groups):
         dna_bead_masks.append(mask)
         error = aa_dna.copy_molecule_using_mask(bead, mask, frame)
 
-        # output each bead to a pdb for verification/debug purposes
-        #s name = 'bead'+str(j)+'.pdb' ; bead.write_pdb(name, 0, 'w')
-
         com = bead.calccom(frame)
         cg_coor[0, j, :] = com  # a list of the com coordinate for each bead
 
         # calculate atomic coodinates using the bead com as the origin
         bead.center(0)
         all_beads.append(bead)
-
-        # check residues from DNA strand 1 to see if this is a flexible bead
-        for i in xrange(r1a, r1b):
-            if i in flexResids[:, 0]:
-                (r, c) = np.where(flexResids==i)
-                # this stores the assigned group in the temp var: beadGroup
-                beadGroup = flexResids[r[0], 1]
-                if j==0:                         # first bead
-                    link[j] = [1, beadGroup]
-                elif j==nbeads-1:                # last bead
-                    link[j-2] = [1, beadGroup]   # should this be j-1?  8/22/14
-                else:  #all other beads, this is only 2 links in python
-                    link[j-1:j+1] = [1, beadGroup]
-                break  # bead defined as flexible, stop looping over residues
-
+        
         # setup for next iteration
         r1a = r1b
         r2a = r2b
-
-    # position the bead at its calculated com
-    beadgroups = np.zeros(len(link[:, 1])+1, dtype=int)
-    beadgroups[1:] = link[:, 1]
-    # need a trial bead for every flexible link (0th bead will never move)
-    trialbeads = np.zeros(np.sum(link[:, 0]), dtype=np.uint)
-    j = 0
-    for i_link in xrange(nbeads-1):
-        if link[i_link, 0]:
-            trialbeads[j] = i_link+1
-            j+=1
-
-    print 'beadgroups = ', beadgroups[trialbeads]
-    # print 'flexlink = ', flexlink
-    # print 'trialbeads = ', trialbeads
-    # print "cg_coor = \n", cg_coor
-    # print cg_dna._coor[frame, :, 0]
+    
     cg_dna.setCoor(cg_coor)  #; print cg_dna._coor[frame, :, 0]
 
     vecXYZ = np.zeros((3, nbeads, 3))
     vecXYZ[0] = [1, 0, 0]
     vecXYZ[1] = [0, 1, 0]
     vecXYZ[2] = [0, 0, 1]
+    toc = time.time() - tic
+    print 'DNA coarse-graining took %f seconds' % toc
+    return (aa_dna, aa_dna_mask, cg_dna, all_beads, dna_bead_masks, vecXYZ)
 
-    #~~~~~~~~~~ END OF DNA SECTION, BEGINNING OF PROTEIN SECTION ~~~~~~~~~~~~#
-
+def make_cg_pro(aa_all, pro_groups, frame=0):
     # load the protein into its own sasmol object
     aa_pro = sasmol.SasMol(0)
-    error, mask = aa_all.get_subset_mask('((moltype[i] == "protein"))')
-    aa_pro_mask = mask
-    error = aa_all.copy_molecule_using_mask(aa_pro, mask, frame)
+    error, aa_pro_mask = aa_all.get_subset_mask('((moltype[i] == "protein"))')
+    error = aa_all.copy_molecule_using_mask(aa_pro, aa_pro_mask, frame)
     print 'protein atoms = ', aa_pro.natoms()
 
     # coarse-grain the proteins
-    print "coarse-graining the protein, this may take awhile..."
+    print "coarse-graining the protein..."
+    tic = time.time()
     cg_pro = sasmol.SasMol(0)
     error, aa2cg_pro_mask = aa_pro.get_subset_mask("(name[i] == 'CA')")
     error = aa_pro.copy_molecule_using_mask(cg_pro, aa2cg_pro_mask, frame)
 
-    # get the masks for the move groups and each group of all atom proteins
+    # create a sasmol object for each protein move group (pro_groups) and 
+    # each group of all atom proteins
     cg_pgroup_masks = []  # masks to separate the cg_protein into NCP groups
     aa_pgroup_masks = []  # masks to separate the aa_protein into NCP groups
-    #s aa2cg_pgroup_masks = []  # masks to get the CA atoms from the aa
     all_proteins = []
-
     (pre, post, btwn) = ("((segname[i]=='", "'))", " or ")
-
     for group in pro_groups:
         aa_pro_group = sasmol.SasMol(0)
         if len(group) > 0:
@@ -242,11 +174,6 @@ def make_cg_model(ARGS, all_atom_pdb, dna_segnames, dna_resids, l, pro_groups):
         aa_pgroup_masks.append(aa_pgroup_mask)
         all_proteins.append(aa_pro_group)
 
-        ''' don't think these two lines are needed:
-        error, mask = aa_pro_group.get_subset_mask("(name[i] == 'CA')")
-        aa2cg_pgroup_masks.append(mask)
-        '''
-
     # combined the protein groups into move groups
     move_masks = []
     for i in xrange(len(cg_pgroup_masks)):
@@ -254,16 +181,66 @@ def make_cg_model(ARGS, all_atom_pdb, dna_segnames, dna_resids, l, pro_groups):
     for i in xrange(len(move_masks)):
         for j in xrange(i+1, len(move_masks)):
             move_masks[i] += move_masks[j]
+            
+    toc = time.time() - tic
+    print 'Protein coarse-graining took %f seconds' % toc
+    
+    return (aa_pro, aa_pro_mask, cg_pro, cg_pgroup_masks, aa_pgroup_masks, 
+            all_proteins, move_masks)
 
-    # group_indices = []
-    # for group_mask in group_masks:
-    #     ind = np.transpose(np.nonzero(group_mask))
-    #     group_indices.append(ind[:, 0])
+def is_bead_flexible(flex_resids, nbeads, resid1, bp_per_bead):
+    ## Flexible part
+    # create an array (groupid) labeling the group for each flexible cg-DNA bead
+    flexResids = [item for sublist in flex_resids for item in sublist]
+    groupid = np.zeros(len(flexResids))
+    link = np.zeros((nbeads-1, 2), dtype=int)  # links between DNA beads
+    # if a bead is designated flexible both it's links are flexible
 
-    # print "M (end of 'make_cgDNA_model')\n", M
-    return (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, all_beads, all_proteins,
-            trialbeads, beadgroups, dna_bead_masks, aa_pgroup_masks, move_masks,
-            cg_pgroup_masks, aa_all, aa_dna_mask, aa_pro_mask)
+    n_start = 0
+    for i in xrange(len(flex_resids)):
+        n_end = len(flex_resids[i]) + n_start
+        groupid[n_start:n_end] = np.ones(len(flex_resids[i])) * i
+        n_start = n_end
+    
+    flexResids = np.concatenate(([flexResids], [groupid]),0).T    
+
+    r1a = resid1[0]
+    for j in xrange(nbeads):
+        if resid1[0] < resid1[1]:
+            r1b = r1a + bp_per_bead  # r1b > r1a
+        else:
+            r1b = r1a - bp_per_bead  # r1b < r1a            
+        ## check residues from DNA strand 1 to see if this is a flexible bead
+        for i in xrange(r1a, r1b):
+            if i in flexResids[:, 0]:
+                (r, c) = np.where(flexResids==i)
+                # this stores the assigned group in the temp var: beadGroup
+                beadGroup = flexResids[r[0], 1]
+                if j==0:                         # first bead
+                    link[j] = [1, beadGroup]
+                elif j==nbeads-1:                # last bead
+                    link[j-2] = [1, beadGroup]   # should this be j-1?  8/22/14
+                else:  #all other beads, this is only 2 links in python
+                    link[j-1:j+1] = [1, beadGroup]
+                break  # bead defined as flexible, stop looping over residues        
+
+        # setup for next iteration
+        r1a = r1b
+
+    # position the bead at its calculated com
+    beadgroups = np.zeros(len(link[:, 1])+1, dtype=int)
+    beadgroups[1:] = link[:, 1]
+    # need a trial bead for every flexible link (0th bead will never move)
+    trialbeads = np.zeros(np.sum(link[:, 0]), dtype=np.uint)
+    j = 0
+    for i_link in xrange(nbeads-1):
+        if link[i_link, 0]:
+            trialbeads[j] = i_link+1
+            j+=1
+
+    print 'beadgroups = ', beadgroups[trialbeads]
+    return beadgroups, trialbeads
+
 
 def recover_aaPro_model(aa_pgroup_masks, cg_pgroup_masks, cg_pro, all_proteins,
                         aa_pro):
@@ -692,7 +669,10 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
     timestr = time.strftime("%y%m%d_%H%M%S_") # prefix for output files
     all_dcd_name = timestr + ARGS.pdb[:-4] + '.dcd'
     aa_all_dcd_out = aa_all.open_dcd_write(all_dcd_name)
-
+    
+    if False:
+        aa_all.send_coordinates_to_vmd(2222,0)
+    
     # create the coarse-grained DNA and protein dcd and pdb files
     cg_dna_dcd_name = timestr + 'cg_dna.dcd'
     cg_pro_dcd_name = timestr + 'cg_pro.dcd'    
@@ -962,12 +942,12 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
 
     aa_all.close_dcd_write(aa_all_dcd_out)
     
-    # cg_dna.close_dcd_write(cg_dna_dcd_out) #uncomment if wanting to keep
-    # cg_pro.close_dcd_write(cg_pro_dcd_out) #uncomment if wanting to keep
-    os.remove(timestr + 'cg_dna.pdb')
-    os.remove(timestr + 'cg_pro.pdb')    
-    os.remove(cg_dna_dcd_name) # remove/comment to keep the cg dna coor
-    os.remove(cg_pro_dcd_name) # remove/comment to keep the cg pro coor   
+    cg_dna.close_dcd_write(cg_dna_dcd_out) #uncomment if wanting to keep
+    cg_pro.close_dcd_write(cg_pro_dcd_out) #uncomment if wanting to keep
+    # os.remove(timestr + 'cg_dna.pdb')
+    # os.remove(timestr + 'cg_pro.pdb')    
+    # os.remove(cg_dna_dcd_name) # remove/comment to keep the cg dna coor
+    # os.remove(cg_pro_dcd_name) # remove/comment to keep the cg pro coor   
     os.remove(vecX_dcd_name) # remove/comment to keep the cg pro coor   
     os.remove(vecY_dcd_name) # remove/comment to keep the cg pro coor   
     os.remove(vecZ_dcd_name) # remove/comment to keep the cg pro coor       
@@ -1242,28 +1222,26 @@ def main():
             #s     range(501, 532), range(667, 694)]
             small_range = [range(1, 10), range(177, 180), range(344, 352),
                  range(513, 517), range(680, 694)]
-            med_range   = [range(1, 20), range(172, 189), range(339, 357),
+            inter_range = [range(1, 20), range(172, 189), range(339, 357),
                  range(507, 524), range(674, 694)]
             large_range = [range(1, 31), range(167, 198), range(334, 365),
                  range(501, 532), range(667, 694)]
-
-            # CHANGE SETTINGS HERE #
-            ARGS.size
-            # CHANGE SETTINGS HERE #
+            xlarge_range = [range(1, 36), range(162, 203), range(329, 370),
+                 range(496, 537), range(662, 699)]
 
             if ARGS.size == 'large':
                 flex_resids = large_range
             elif ARGS.size == 'med':
-                flex_resids = med_range
+                flex_resids = inter_range
             elif ARGS.size == 'small':
                 flex_resids = small_range
-            elif ARGS.size == 'xlarge':
+            elif ARGS.size == 'x-lrg':
                 flex_resids = xlarge_range
             else:
                 print 'unknown selection for size: ', size
                 
             if ARGS.regions == '1-5':         # 1-5 option
-                flex_resids = flex_resids
+                pass                          # flex_resids = flex_resids
             elif ARGS.regions == '234':       # 2-4 option
                 flex_resids[0] = flex_resids[4] = []
             elif ARGS.regions == '2_4':       # 2, 4 option
@@ -1271,15 +1249,15 @@ def main():
             elif ARGS.regions == '23_':       # 2-3 option
                 flex_resids[0] = flex_resids[4] = flex_resids[3] = []
             elif ARGS.regions == '2__':       # 2 option
-                flex_resids[0] = flex_resids[4] = flex_resids[3] = flex_resid[2] = []
+                flex_resids[0] = flex_resids[4] = flex_resids[3] = flex_resids[2] = []
             elif ARGS.regions == '_3_':       # 3 option
-                flex_resids[0] = flex_resids[4] = flex_resids[3] = flex_resid[1] = []
+                flex_resids[0] = flex_resids[4] = flex_resids[3] = flex_resids[1] = []
             else:
                 print 'unknown selection for flex: ', ARGS.regions
 
             print ('using regions ' + ARGS.regions + ' with a ' + ARGS.size + 
                    ' size -> flex_resids = \n', flex_resids)
-                
+
             pro_groups.append(['A0', 'B0', 'C0', 'D0',
                                'E0', 'F0', 'G0', 'H0', 'H5N1'])
             pro_groups.append(['A1', 'B1', 'C1', 'D1',
@@ -1288,15 +1266,16 @@ def main():
                                'Q1', 'R1', 'S1', 'T1', 'H5N3'])
             pro_groups.append(['M0', 'N0', 'O0', 'P0',
                                'Q0', 'R0', 'S0', 'T0', 'H5N4'])
-            ARGS.theta_max = [1, 1, 1, 1, 1]
+            ARGS.theta_max = [5, 5, 5, 5, 5]
 
         elif ARGS.pdb == 'new_dsDNA60.pdb':
             # linker dna file
             dna_segnames = ['DNA1', 'DNA2']
             dna_resids.append([1, 60]) # DNA base pairing
             dna_resids.append([120, 61]) # DNA base pairing
-            flex_resids = [range(16, 45)]
- 
+            #flex_resids = [range(16, 45)]
+            flex_resids = [range(1,15), range(46,60)]
+            ARGS.theta_max = [5, 5, 5, 5, 5]
         elif ARGS.pdb == 'new_dsDNA.pdb':
             # linker dna file
             dna_segnames = ['DNA1', 'DNA2']
@@ -1306,25 +1285,17 @@ def main():
         else:
             print "\n~~~ ERROR, unknow pdb file input ~~~\n"
 
-
-
-        pkl_file = ARGS.pdb[:-3] + 'pkl'
-
-        if os.path.isfile(pkl_file) and ARGS.rm_pkl:
-            print '>>> removing cg paramaters for %s: %s' % (ARGS.pdb, pkl_file)
-            os.remove(pkl_file)
-
         tic = time.time()
 
         (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, trialbeads, beadgroups, 
         move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, cg_pgroup_masks, 
         all_proteins, aa_all, aa_pro_mask, aa_dna_mask) = get_cg_parameters(
-            pkl_file, flex_resids, all_atom_pdb, pro_groups, dna_resids, 
-            dna_segnames)
+            ARGS, flex_resids, pro_groups, dna_resids, dna_segnames)
         
-        toc = time.time() - tic ; print 'coarse-grain time =', toc, 'seconds'
-        tic = time.time()
+        toc = time.time() - tic 
+        print 'Total coarse-grain time = %f seconds' % toc        
         
+    tic = time.time()     
     dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
            beadgroups, move_masks, all_beads, dna_bead_masks, aa_pgroup_masks,
            cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask)
@@ -1333,20 +1304,43 @@ def main():
     if None == ARGS.Llp and ARGS.flex:
         write_flex_resids(all_beads, trialbeads, ARGS)
 
-def get_cg_parameters(pkl_file, flex_resids, all_atom_pdb, pro_groups, dna_resids, dna_segnames):
+def get_cg_parameters(ARGS, flex_resids, pro_groups, dna_resids, 
+                      dna_segnames):
+    '''
+    This module is designed to generate the coarse-grained run parameters then
+    save them to a pickle file for future use.  If the pickle file already 
+    exists, it will load that file then compare the new input to see if all 
+    parameters meet the current input.  If there are critical differences, it 
+    will re-generate the parameters and update the pickle file.  This process 
+    drastically improves the load time when running the same setup many times.
+    To force the program to regenerate the parameters, provide the '-rp' flag to
+    remove the pickle file.  This should occur when re-coarse-graining after a
+    minimization.  This has not yet been automated.    
+    '''
+    pkl_file = ARGS.pdb[:-3] + 'pkl'
+
+    if os.path.isfile(pkl_file) and ARGS.rm_pkl:
+        print '>>> removing cg paramaters for %s: %s' % (ARGS.pdb, pkl_file)
+        os.remove(pkl_file)
+
+    do_cg_pro = do_cg_dna = do_dna_flex = False
+
     # if pickle_file exists:
     if os.path.isfile(pkl_file):
         print 'loading cg parameters for %s from: %s' % (ARGS.pdb, pkl_file)
         # load pickle_file
         pkl_in = open(pkl_file, 'rb')
 
+        # critical
         cg_dna          = pickle.load(pkl_in)
         aa_dna          = pickle.load(pkl_in)
         cg_pro          = pickle.load(pkl_in)
         aa_pro          = pickle.load(pkl_in)
         vecXYZ          = pickle.load(pkl_in)
+
         trialbeads      = pickle.load(pkl_in)
         beadgroups      = pickle.load(pkl_in)
+
         move_masks      = pickle.load(pkl_in)
         all_beads       = pickle.load(pkl_in)
         dna_bead_masks  = pickle.load(pkl_in)
@@ -1357,18 +1351,54 @@ def get_cg_parameters(pkl_file, flex_resids, all_atom_pdb, pro_groups, dna_resid
         aa_pro_mask     = pickle.load(pkl_in)
         aa_dna_mask     = pickle.load(pkl_in)
         
+        # input parametrs used to generate these cg-parameters
+        ARGS_old        = pickle.load(pkl_in)        
+        flex_resids_old = pickle.load(pkl_in)
+        pro_groups_old  = pickle.load(pkl_in)
+        
         pkl_in.close()
         
+        # check if input parameters have changes since last using this pdb
+        if pro_groups != pro_groups_old:
+            do_cg_pro = True
+        
+        if ARGS.bp_per_bead != ARGS_old.bp_per_bead:
+            do_cg_dna = True
+
+        if flex_resids != flex_resids_old:
+            do_dna_flex = True
+
     else:
-        print 'cg %s and save the parameters to: %s' % (ARGS.pdb, pkl_file)
+        # load in the all atom pdb
+        aa_all = sasmol.SasMol(0)
+        aa_all.read_pdb(ARGS.pdb)  
+
+        do_cg_dna = do_cg_pro = True
+        
+
+    if do_cg_dna:
+        #~~~ DNA ONLY SECTION ~~~#
+        (aa_dna, aa_dna_mask, cg_dna, all_beads, dna_bead_masks, 
+         vecXYZ) = make_cg_dna(dna_segnames, dna_resids, ARGS.bp_per_bead, 
+                               aa_all)
+        do_dna_flex = True
+        
+    if do_dna_flex:
+        #~~~ Determine flexible DNA beads from user input ~~~#
+        beadgroups, trialbeads = is_bead_flexible(flex_resids, cg_dna.natoms(), 
+                                    dna_resids[0], ARGS.bp_per_bead)
+
+    if do_cg_pro:
+        #~~~ Protein ONLY section ~~~#
+        (aa_pro, aa_pro_mask, cg_pro, cg_pgroup_masks, aa_pgroup_masks, 
+         all_proteins, move_masks) = make_cg_pro(aa_all, pro_groups)
+        
+    if do_cg_dna or do_cg_pro or do_dna_flex:
+        print 'cg %s using updated parameters. Result saved to: %s' % (ARGS.pdb,
+                                                                       pkl_file)
+
         # create the pickle_file for future use
         pkl_out = open(pkl_file, 'wb')
-    
-        (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, all_beads, all_proteins,
-         trialbeads, beadgroups, dna_bead_masks, aa_pgroup_masks, 
-         move_masks, cg_pgroup_masks, aa_all, aa_dna_mask, aa_pro_mask
-         ) = make_cg_model(ARGS, all_atom_pdb, dna_segnames, dna_resids, 
-                           flex_resids, pro_groups)
 
         pickle.dump(cg_dna, pkl_out, -1)
         pickle.dump(aa_dna, pkl_out, -1)
@@ -1386,7 +1416,12 @@ def get_cg_parameters(pkl_file, flex_resids, all_atom_pdb, pro_groups, dna_resid
         pickle.dump(aa_all, pkl_out, -1)
         pickle.dump(aa_pro_mask, pkl_out, -1)    
         pickle.dump(aa_dna_mask, pkl_out, -1)    
-    
+
+        # input parameters used to get these cg-parameters
+        pickle.dump(ARGS, pkl_out, -1)
+        pickle.dump(flex_resids, pkl_out, -1)
+        pickle.dump(pro_groups, pkl_out, -1)        
+        
         pkl_out.close()
     
     # this is important for re-aligning the proteins after moving them
