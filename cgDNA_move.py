@@ -3,7 +3,7 @@
 # Author:   --<Steven Howell>
 # Purpose:  Generate modified DNA or DNA-protein structures
 # Created: 12/01/2013
-# $Id: cgDNA_move.py,v 1.45 2014-10-06 17:56:56 schowell Exp $
+# $Id: cgDNA_move.py,v 1.46 2014-10-07 20:32:43 schowell Exp $
 
 #0000000011111111112222222222333333333344444444445555555555666666666677777777778
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
@@ -724,7 +724,7 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
                ' btwn beads)')
 
     dna_diam = {'a': 25.5, 'b': 23.7, 'z': 18.4}
-    dna_bead_radius = 5.0
+    dna_bead_radius = 4.5
 
     pro_bead_radius = 1.0 # 2A min seperation of CA atoms in database
 
@@ -763,7 +763,8 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
 
         # Determine rotation to perform
         theta_max = ARGS.theta_max[beadgroups[trial_bead]]
-        thetaZ_max = np.float(theta_max) # option to scale thetaZ separatly
+        thetaZ_max = 0 * np.float(theta_max) # option to scale thetaZ separatly
+        #thetaZ_max = np.float(theta_max) # option to scale thetaZ separatly
         thetaZ = 2 * thetaZ_max * np.random.random() - thetaZ_max
         thetaX = 2 * theta_max  * np.random.random() - theta_max
         thetaY = 2 * theta_max  * np.random.random() - theta_max
@@ -838,7 +839,7 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
                 # check for protein-protein overlap
                 if 1 == f_overlap2(p_coor_rot, p_coor_fix, pro_pro_test):
                     print 'Protein-Protein'
-                    #print 'collisioin, set p=0'
+                    #print 'collision, set p=0'
                     collision = 1
                 
                 print 'currently ignoring DNA-protein overlap'
@@ -854,8 +855,8 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
                     # #print 'collision, set p=0'
                     # collision = 1
 
-                # if collision == 1:
-                    # print 'failed because of collision'
+                if collision == 1:
+                    print 'failed because of collision'
 
         if dna_pass and collision == 0:
             n_from_reload += 1
@@ -1254,6 +1255,11 @@ def main():
                 flex_resids[0] = flex_resids[4] = flex_resids[3] = flex_resids[1] = []
             else:
                 print 'unknown selection for flex: ', ARGS.regions
+                
+            # manually selecting flex-resids
+            #s flex_resids = [range(18,33), range(182,199), [], range(496,508), range(668,677)]
+            flex_resids = [[], [], [], [], range(668,677)]
+            
 
             print ('using regions ' + ARGS.regions + ' with a ' + ARGS.size + 
                    ' size -> flex_resids = \n', flex_resids)
@@ -1266,7 +1272,7 @@ def main():
                                'Q1', 'R1', 'S1', 'T1', 'H5N3'])
             pro_groups.append(['M0', 'N0', 'O0', 'P0',
                                'Q0', 'R0', 'S0', 'T0', 'H5N4'])
-            ARGS.theta_max = [5, 5, 5, 5, 5]
+            ARGS.theta_max = [2, 5, 2, 5, 2]
 
         elif ARGS.pdb == 'new_dsDNA60.pdb':
             # linker dna file
@@ -1361,13 +1367,19 @@ def get_cg_parameters(ARGS, flex_resids, pro_groups, dna_resids,
         # check if input parameters have changes since last using this pdb
         if pro_groups != pro_groups_old:
             do_cg_pro = True
-        
+            print '>>>Previous run parameter, %s, conflict with present run' % 'pro_groups'
+            print '>>>Re-coarse-graining the Protein'               
+            
         if ARGS.bp_per_bead != ARGS_old.bp_per_bead:
             do_cg_dna = True
+            print '>>>Previous run parameter, %s, conflict with present run' % 'bp_per_bead'
+            print '>>>Re-coarse-graining the DNA'       
 
         if flex_resids != flex_resids_old:
             do_dna_flex = True
-
+            print '>>>Previous run parameter, %s, conflict with present run' % 'flex_resids'
+            print '>>>Re-identifying flexible residues'       
+            
     else:
         # load in the all atom pdb
         aa_all = sasmol.SasMol(0)
