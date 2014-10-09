@@ -2,14 +2,13 @@
 # Auther: Steven C. Howell
 # Purpose: Run crysol in parrallel with consolidated output
 # Created: 10/09/2014
-# $Id: parallel_crysol.py,v 1.1 2014-10-09 22:59:31 schowell Exp $
+# $Id: parallel_crysol.py,v 1.2 2014-10-09 23:28:44 schowell Exp $
 
 import sys
 import os
 import os.path as op
 import subprocess
 import logging
-import numpy as np
 import cmd
 import shutil
 import time
@@ -187,6 +186,10 @@ def split_dcd():
     
     mol.read_dcd(ARGS.dcd)
     total_frames = mol.number_of_frames()
+    if ARGS.ncpu < 0:
+        print 'ncpu: %d < 0,   using |%d| = %d instead' % (ARGS.ncpu, 
+                                                ARGS.ncpu, abs(ARGS.ncpu) )
+        ARGS.ncpu = abs(ARGS.ncpu)
     n_frames_sub = total_frames/ARGS.ncpu
     last_frame = 0
     sub_dirs = []
