@@ -3,7 +3,7 @@
 # Author:   --<Steven Howell>
 # Purpose:  Generate modified DNA or DNA-protein structures
 # Created: 12/01/2013
-# $Id: driven_dna_move.py,v 1.1 2014-10-07 20:36:48 schowell Exp $
+# $Id: driven_dna_move.py,v 1.2 2014-10-09 22:59:31 schowell Exp $
 
 #0000000011111111112222222222333333333344444444445555555555666666666677777777778
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
@@ -755,6 +755,8 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
         'each group needs its own theta_max: %d < %d'
         % (np.size(ARGS.theta_max) - 1, np.max(beadgroups) ))
 
+    rg_old = cg_dna.calcrg(0)
+
     # Main MC loop #
     while n_accept < ARGS.nsteps:
 
@@ -781,90 +783,102 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
             p_coor_rot = p_coor[p_ind_rot]
             p_coor_fix = p_coor[p_ind_fix]
 
+        # generate a newly rotated model
         (d_coor[trial_bead:], xyz[:, trial_bead:], p_coor_rot) = beadRotate(
             d_coor[trial_bead-1:], xyz[:, trial_bead-1:], thetaXYZ, ARGS.n_soft,
-            p_coor_rot) # generate a newly rotated model
+            p_coor_rot) 
 
         # store the rotated protein coordinates
         if beadgroups[trial_bead] < len(group_masks):
             p_coor[p_ind_rot] = p_coor_rot
 
-        # calculate the change in energy (dU) and the boltzman factor (p)
-        (u, l) = checkU(d_coor)
-        Ub1 = energyBend(lpl, u, l)
+        # verify the Rg_new < Rg_old * 1.01
+        d_coor_old = np.copy(cg_dna.coor()[0])
+        cg_dna.setCoor(np.array([(d_coor)])) # update dna coordinates
+        rg_new = cg_dna.calcrg(0)
 
-        # ~~~~ DNA interaction energy  ~~~~~~#
-        if ARGS.f_collide:
-            (Uwca1, wca1) = f_energy_wca(w, d_coor, wca0, trial_bead)
+        if rg_new < rg_old * 1.01:
+            rg_pass = True
+            print 'rg_old * 1.01 < rg_new: %f < %f' % (rg_old*1.01, rg_new)
         else:
-            (Uwca1, wca1) = p_energy_wca(w, d_coor, wca0, trial_bead)
-            print "python wca calculator deprecated"
+            rg_pass = False
+            print 'rg_old * 1.01 > rg_new: %f > %f' % (rg_old*1.01, rg_new)
+            
+        if rg_pass:
+            # calculate the change in energy (dU) and the boltzman factor (p)
+            (u, l) = checkU(d_coor)
+            Ub1 = energyBend(lpl, u, l)
+    
+            # ~~~~ DNA interaction energy  ~~~~~~#
+            if ARGS.f_collide:
+                (Uwca1, wca1) = f_energy_wca(w, d_coor, wca0, trial_bead)
+            else:
+                (Uwca1, wca1) = p_energy_wca(w, d_coor, wca0, trial_bead)
+                print "python wca calculator deprecated"
+    
+            U_T1 =  Ub1 + Uwca1
+            dU = U_T1 - U_T0
+    
+            with warnings.catch_warnings():
+                warnings.filterwarnings('error') # need this for np warnings
+                try:
+                    p = np.exp(-dU)
+                except Warning:
+                    if dU > 99:
+                        p =  0
+                        #s print 'energy was large, setting probability to 0'
+                    elif dU < 0:
+                        p =  1
+                        #s print 'energy was negative, setting probability to 1'
+                    else:
+                        print 'Warning: ~~> unclear OverflowError <~~ dU = ', dU
+                        print 'not sure where the error originated from'
 
-        U_T1 =  Ub1 + Uwca1
-        dU = U_T1 - U_T0
+            test = np.random.random()
 
-        with warnings.catch_warnings():
-            warnings.filterwarnings('error') # need this for np warnings
-            try:
-                p = np.exp(-dU)
-                # print '\n(Ub1, Uwca1) = ', (Ub1, Uwca1) 
-                # print '(Ub1/U_T1, Uwca1/U_T1) = ', (Ub1/U_T1, Uwca1/U_T1)
-                # print '(p, dU) = ', (p, dU)
-            except Warning:
-                if dU > 99:
-                    p =  0
-                    #s print 'energy was large, setting probability to 0'
-                elif dU < 0:
-                    p =  1
-                    #s print 'energy was negative, setting probability to 1'
+            if p <= test:
+                dna_pass = False
+                # print 'step failed because of DNA energy'
+            else:
+                dna_pass = True
+
+                # now check for collisions protein involved collisions 
+                if len(p_coor_rot) > 0:   # only if proteins were rotated
+                    # ~~~~ Check for overlap, DNA-protein or protein-protein ~~~~~~#
+                    d_coor_fix = d_coor[trial_bead:]
+                    d_coor_rot = d_coor[:trial_bead]
+    
+                    # check for protein-protein overlap
+                    if 1 == f_overlap2(p_coor_rot, p_coor_fix, pro_pro_test):
+                        print 'Protein-Protein'
+                        #print 'collision, set p=0'
+                        no_collision = False
+                    
+                    # print 'currently ignoring DNA-protein overlap'
+                    # check for DNA-protein overlap
+                    elif 1 == f_overlap2(p_coor_rot, d_coor_fix, dna_pro_test):
+                        print 'Potein-DNA (rot-fix)'
+                        #print 'collision, set p=0'
+                        no_collision = False
+                        print 'ignoring this for now'
+    
+                    elif 1 == f_overlap2(p_coor_fix, d_coor_rot, dna_pro_test):
+                        print 'Potein-DNA (fix-rot)'
+                        #print 'collision, set p=0'
+                        no_collision = False
+    
+                    if no_collision == 1:
+                        print 'failed because of collision'
                 else:
-                    print 'Warning: ~~> unclear OverflowError <~~ dU = ', dU
-                    print 'not sure where the error originated from'
+                    no_collision = True #no protein to collide with
 
-        test = np.random.random()
-        collision = 0
-
-        if test >= p:
-            dna_pass = False
-            # print 'step failed because of DNA energy'
-        else:
-            dna_pass = True
-
-            # now check for collisions
-            if len(p_coor_rot) > 0:   # only if proteins were rotated
-                # ~~~~ Check for overlap, DNA-protein or protein-protein ~~~~~~#
-                d_coor_fix = d_coor[trial_bead:]
-                d_coor_rot = d_coor[:trial_bead]
-
-                # check for protein-protein overlap
-                if 1 == f_overlap2(p_coor_rot, p_coor_fix, pro_pro_test):
-                    print 'Protein-Protein'
-                    #print 'collision, set p=0'
-                    collision = 1
-                
-                print 'currently ignoring DNA-protein overlap'
-                # # check for DNA-protein overlap
-                # elif 1 == f_overlap2(p_coor_rot, d_coor_fix, dna_pro_test):
-                    # print 'Potein-DNA (rot-fix)'
-                    # #print 'collision, set p=0'
-                    # collision = 1
-                    # print 'ignoring this for now'
-
-                # elif 1 == f_overlap2(p_coor_fix, d_coor_rot, dna_pro_test):
-                    # print 'Potein-DNA (fix-rot)'
-                    # #print 'collision, set p=0'
-                    # collision = 1
-
-                if collision == 1:
-                    print 'failed because of collision'
-
-        if dna_pass and collision == 0:
+        if rg_pass and dna_pass and no_collision:
+            rg_old = rg_new
             n_from_reload += 1
             steps_from_0[n_accept] = n_from_reload + n_reload[-1]
             n_accept += 1                      # increment accept counter
             # cg_dna.setCoor(d_coor) # <-- DO NOT use setCoor, want uniuqe mem
             # cg_pro.setCoor(p_coor) # <-- DO NOT use setCoor, want uniuqe mem            
-            cg_dna.setCoor(np.array([(d_coor)])) # update dna coordinates
             cg_pro.setCoor(np.array([(p_coor)])) # update protein coordinates
             vecXYZ = np.copy(xyz)              # update dna orientations
             vecX_mol.setCoor(np.array([vecXYZ[0]])) # independent of vecXYZ[0]
@@ -878,6 +892,10 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
             print "trial_bead(%3d) = %2d\t failed attempts = %2d" % (n_accept, 
                                                         trial_bead, fail_tally)
             fail_tally = 0                     # reset fail_tally
+
+            # print out the Rg
+            
+            print cg_dna.calcrg(0)
 
             # write out the accepted configuration for go-back use
             if ARGS.goback > 0:
@@ -907,15 +925,16 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
                 aa_all.write_dcd_step(aa_all_dcd_out, 0, n_written)
                 
         else :
-            # by default ARGS.goback is -1 so this returns FALSE without input
+            # default ARGS.goback is -1 so this returns FALSE without user input
             if fail_tally == ARGS.goback:  
                 i_goback = rewind(ARGS, n_accept, cg_dna_dcd_name,
                             cg_dna, cg_pro_dcd_name, cg_pro, vecX_dcd_name, 
                             vecX_mol, vecY_mol, vecY_dcd_name, vecZ_mol, 
                             vecZ_dcd_name, vecXYZ)
 
+                cg_dna.setCoor(np.array([(d_coor_old)])) # revert dna coordinates
                 d_coor = np.copy(cg_dna.coor()[0]) # reset the dna coordinates
-
+                
                 # reset the reference energy
                 (u, l) = checkU(d_coor) 
                 (Uwca0, wca0) = f_energy_wca(w, d_coor, wca0, 0)
@@ -928,6 +947,7 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
             else:
                 fail_tally += 1                 # increment bead reject counter 
                 n_reject += 1                   # increment total reject counter
+                cg_dna.setCoor(np.array([(d_coor_old)])) # revert dna coordinates
                 d_coor = np.copy(cg_dna.coor()[0]) # reset the dna coordinates
                 
             p_coor = np.copy(cg_pro.coor()[0]) # reset the protein coordinates
@@ -944,14 +964,14 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
     aa_all.close_dcd_write(aa_all_dcd_out)
     
     cg_dna.close_dcd_write(cg_dna_dcd_out) #uncomment if wanting to keep
-    cg_pro.close_dcd_write(cg_pro_dcd_out) #uncomment if wanting to keep
-    # os.remove(timestr + 'cg_dna.pdb')
-    # os.remove(timestr + 'cg_pro.pdb')    
+    # os.remove(timestr + 'cg_dna.pdb') # remove/comment to keep the cg dna coor
     # os.remove(cg_dna_dcd_name) # remove/comment to keep the cg dna coor
-    # os.remove(cg_pro_dcd_name) # remove/comment to keep the cg pro coor   
-    os.remove(vecX_dcd_name) # remove/comment to keep the cg pro coor   
-    os.remove(vecY_dcd_name) # remove/comment to keep the cg pro coor   
-    os.remove(vecZ_dcd_name) # remove/comment to keep the cg pro coor       
+    # cg_pro.close_dcd_write(cg_pro_dcd_out) #uncomment if wanting to keep
+    os.remove(timestr + 'cg_pro.pdb') # remove/comment to keep the cg pro coor   
+    os.remove(cg_pro_dcd_name) # remove/comment to keep the cg pro coor   
+    os.remove(vecX_dcd_name) 
+    os.remove(vecY_dcd_name) 
+    os.remove(vecZ_dcd_name) 
 
     if ARGS.goback > 0:
         np.savetxt(timestr+'n_from_0.txt', steps_from_0, fmt='%d')
@@ -1279,9 +1299,8 @@ def main():
             dna_segnames = ['DNA1', 'DNA2']
             dna_resids.append([1, 60]) # DNA base pairing
             dna_resids.append([120, 61]) # DNA base pairing
-            #flex_resids = [range(16, 45)]
-            flex_resids = [range(1,15), range(46,60)]
-            ARGS.theta_max = [5, 5, 5, 5, 5]
+            flex_resids = [range(16, 45)]
+            ARGS.theta_max = [25, 25, 25, 25, 25]
         elif ARGS.pdb == 'new_dsDNA.pdb':
             # linker dna file
             dna_segnames = ['DNA1', 'DNA2']
