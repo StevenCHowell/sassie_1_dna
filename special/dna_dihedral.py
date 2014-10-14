@@ -2,11 +2,11 @@
 #!/usr/bin/env python
 # Purpose: methods for calculating DNA dihedral angles and generating plots    
 # Created: 22 September 2014                                                   
-# $Date                                                                        $
-# $Rev                                                                         $
-# $Author                                                                      $
-# $URL                                                                         $
-# $Id                                                                          $
+# $Date$
+# $Rev$
+# $Author$
+# $URL$
+# $Id$
 
 #0000000011111111112222222222333333333344444444445555555555666666666677777777778
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
