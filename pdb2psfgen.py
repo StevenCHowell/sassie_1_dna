@@ -2,7 +2,7 @@
 # Author:  Steven C. Howell
 # Purpose: Replace DNA sequence with another sequence
 # Created: 04/24/2014
-# $Id: pdb2psfgen.py,v 1.5 2014-09-10 20:10:27 schowell Exp $
+# $Id: pdb2psfgen.py,v 1.6 2014-10-14 15:45:38 schowell Exp $
 '''
 This script loads a pdb structure file of DNA, and creates a '*.patches' file
 with the psfgen patches needed to use psfgen to create the structure.
@@ -94,6 +94,7 @@ if __name__ == "__main__":
     import argparse
     if '-v' in sys.argv:
         logging.basicConfig(filename='_log-%s' %__name__, level=logging.DEBUG)
+        sys.argv.pop(sys.argv.index('-v'))
     else:
         logging.basicConfig()
 

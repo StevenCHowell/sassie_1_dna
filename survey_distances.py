@@ -1,7 +1,7 @@
-# $Id: survey_distances.py,v 1.2 2014-09-29 19:00:23 schowell Exp $
+# $Id: survey_distances.py,v 1.3 2014-10-14 15:45:38 schowell Exp $
 import os,sys,locale,string,numpy as np,math
 import sassie.sasmol.sasmol as sasmol
-import collision
+from dna import collision
 
 def calc_dist(m1,coor):
 
@@ -98,7 +98,7 @@ def get_distances2(m1, basis1, basis2):
 
     return f_calc_dist2(coor1[0], coor2[0])
 
-def plot_historam(dist_array,title, N_bins):
+def plot_histogram(dist_array,title, N_bins):
 
     import numpy as np
     import matplotlib.mlab as mlab
@@ -136,7 +136,7 @@ if __name__ == '__main__':
     #ca_distances = get_distances(m1,basis)
     #print 'min distance ',min(ca_distances)
     #print 'max distance ',max(ca_distances)
-    #plot_historam(ca_distances,'CA Distances')
+    #plot_histogram(ca_distances,'CA Distances')
 
     print 'DNA-Protein results:'
     basis1 = 'name[i] == "CA"' #protein CA atoms
@@ -145,7 +145,7 @@ if __name__ == '__main__':
     print 'min distance ',min(dna_protein_distances)
     print 'max distance ',max(dna_protein_distances)
     print 'pause'
-    plot_historam(dna_protein_distances,'DNA-Protein Distances', len(dna_protein_distances)/100)
+    plot_histogram(dna_protein_distances,'DNA-Protein Distances', len(dna_protein_distances)/100)
 
     #print 'Backbone results:'
     #basis = 'name[i] == "C" or name[i] == "O" or name[i] == "P"' #dna
@@ -153,19 +153,19 @@ if __name__ == '__main__':
     #backbone_distances = get_distances(m1,basis)
     #print 'min distance ',min(backbone_distances)
     #print 'max distance ',max(backbone_distances)
-    #plot_historam(backbone_distances,'Backbone Distances', len(backbone_distances)/100)
+    #plot_histogram(backbone_distances,'Backbone Distances', len(backbone_distances)/100)
 
     #print 'Heavy results:'
     #basis = 'name[i][0] != "H"'
     #heavy_distances = get_distances(m1,basis)
     #print 'min distance ',min(heavy_distances)
     #print 'max distance ',max(heavy_distances)
-    #plot_historam(heavy_distances,'Heavy Distances', len(heavy_distances)/100)
+    #plot_histogram(heavy_distances,'Heavy Distances', len(heavy_distances)/100)
 
     #print 'All atom results:'
     #basis = 'name[i] != "None"'
     #all_distances = get_distances(m1,basis)
     #print 'min distance ',min(all_distances)
     #print 'max distance ',max(all_distances)
-    #plot_historam(all_distances,'All Distances', len(all_distances)/100)
+    #plot_histogram(all_distances,'All Distances', len(all_distances)/100)
 
