@@ -1,8 +1,8 @@
 #!/usr/bin/python
 #!/usr/bin/env python
-# $REV::     $: Revision of last commit
-# $Author::  $: Author of last commit
-# $Date::    $: Date of last commit
+# $Rev::                                      $: Revision of last commit
+# $Author::                                   $: Author of last commit
+# $Date::                                     $: Date of last commit
 # Purpose: methods for calculating DNA dihedral angles and generating plots
 # Created: 22 September 2014
 # $Id: $
