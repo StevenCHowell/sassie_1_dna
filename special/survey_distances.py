@@ -1,4 +1,15 @@
+#!/usr/bin/env python
+#!/share/apps/bin/python
+#
+# Author:  Steven C. Howell
+# Purpose: determine the distance between DNA and protein atoms
+# Created: Septemeber 2014
+#
 # $Id$
+#
+#0000000011111111112222222222333333333344444444445555555555666666666677777777778
+#2345678901234567890123456789012345678901234567890123456789012345678901234567890
+
 import os,sys,locale,string,numpy as np,math
 import sassie.sasmol.sasmol as sasmol
 from dna import collision

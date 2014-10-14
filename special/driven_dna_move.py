@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 #!/share/apps/bin/python
-# Author:   --<Steven Howell>
-# Purpose:  Generate modified DNA or DNA-protein structures
+#
+# Author:  Steven C. Howell
+# Purpose: drive the DNA moves toward a smaller (or larger) Rg
 # Created: 9 October 2014
+#
 # $Id$
-
+#
 #0000000011111111112222222222333333333344444444445555555555666666666677777777778
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
 

@@ -1,9 +1,14 @@
 #!/usr/bin/python
 #!/usr/bin/env python
+#
 # Author:  Steven C. Howell
 # Purpose: methods for calculating DNA dihedral angles and generating plots
 # Created: 22 September 2014
+#
 # $Id$
+#
+#0000000011111111112222222222333333333344444444445555555555666666666677777777778
+#2345678901234567890123456789012345678901234567890123456789012345678901234567890
 
 import sassie.sasmol.sasmol as sasmol
 import numpy
