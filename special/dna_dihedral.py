@@ -1,13 +1,11 @@
 #!/usr/bin/python
 #!/usr/bin/env python
-# $Date::                                                    $: from last commit
-# $Rev::                                                     $: from last commit
-# $Author::                                                  $: from last commit
-# $URL::                                                     $: from last commit
-# $ID::                                                      $: from last commit
-# $Header$: from last commit
 # Purpose: methods for calculating DNA dihedral angles and generating plots
 # Created: 22 September 2014
+# $Date 2014-10-14 14:19:37 -0400 (Tue, 14 Oct 2014)       $
+# $Rev 67                                                  $
+# $Author schowell                                         $
+# $URL svn+ssh://schowell@128.164.238.4/home/svn/sassie_dn#$
 # $Id$
 #0000000011111111112222222222333333333344444444445555555555666666666677777777778
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
