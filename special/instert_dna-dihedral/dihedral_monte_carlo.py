@@ -1,3 +1,12 @@
+#!/usr/bin/env python
+#!/share/apps/bin/python
+#
+# Author:  Steven C. Howell
+# Purpose: added dna functionality in addition to protein and rna
+# Created: September 2014
+#
+# $Id$
+#
 '''
     SASSIE: Copyright (C) 2011 Joseph E. Curtis, Ph.D. 
 

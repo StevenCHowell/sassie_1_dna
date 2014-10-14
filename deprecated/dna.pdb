@@ -1,4 +1,9 @@
-REMARK original generated coordinate pdb file
+REMARK Purpose: debugging and testing the coarse-grained DNA move module
+REMARK          original generated coordinate pdb file
+REMARK Created: December 2013
+REMARK
+REMARK $Id$
+REMARK 
 ATOM      1  C4' CYT A   1       2.726   7.072   1.355  1.00  0.00      DNA1 C
 ATOM      2  H4' CYT A   1       3.619   6.923   1.780  0.00  0.00      DNA1 H
 ATOM      3  O4' CYT A   1       1.986   5.817   1.352  1.00  0.00      DNA1 O

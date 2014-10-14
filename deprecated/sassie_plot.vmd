@@ -1,8 +1,14 @@
 #!/usr/local/bin/vmd
+# Author:  Steven C. Howell
+# Purpose: Plot all-atom and coarse-grained DNA and Protein for debugging purposes
+# Created: January 2014
+# $Id$
+#
 # Run it in vmd TCL interface, type the following:
 # source sassie_plot.vmd
 # or run by using: vmd -e sassie_plot.vmd
-# $Id: sassie_plot.vmd,v 1.2 2014-08-06 15:38:38 schowell Exp $
+#
+
 
 # code to draw the contacts
 #s proc vmd_draw_arrow2 {mol start end} {

@@ -1,11 +1,17 @@
 #!/usr/bin/evn python
-# $Id: setup_collision.py,v 1.2 2014-05-23 20:00:27 schowell Exp $
+# Author:  Steven C. Howell
+# Purpose: setup file for building the fortran collision calculator
+# Created: May 2014
+# $Id$
+# Note: copied from setup_electrostatics.py
+#
 '''
     SASSIE  Copyright (C) 2011 Joseph E. Curtis
     This program comes with ABSOLUTELY NO WARRANTY;
     This is free software, and you are welcome to redistribute it under certain
     conditions; see http://www.gnu.org/licenses/gpl-3.0.html for details.
 '''
+
 # System imports
 from distutils.core import *
 from distutils      import sysconfig

@@ -2,6 +2,13 @@
 #include <stdio.h>
 #include <string.h>
 /*
+  Author:  Steven C. Howell
+  Purpose: generate modified DNA or DNA-protein structures
+  Created: 1 Decemeber 2013
+ 
+  $Id$
+*/ 
+/*
     SASSIE  Copyright (C) 2011 Joseph E. Curtis
     This program comes with ABSOLUTELY NO WARRANTY; 
     This is free software, and you are welcome to redistribute it under certain

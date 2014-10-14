@@ -1,4 +1,10 @@
-C $Id: collision.f,v 1.4 2014-09-18 14:43:09 schowell Exp $
+C
+C Author:  Steven C. Howell
+C Purpose: Calculate interaction energy between every pair of atoms
+C Created: January 2014
+C
+C $Id$
+C
 C         1         2         3         4         5         6         7
 C123456789012345678901234567890123456789012345678901234567890123456789012
 

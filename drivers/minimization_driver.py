@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+# Author:  Steven C. Howell
+# Purpose: script for running SASSIE minimizer with command line input
+# Created: 9 September 2014                                                   
+# $Id$
+
 import os, sys, shutil, glob
 import multiprocessing
 import sassie.interface.input_filter as input_filter

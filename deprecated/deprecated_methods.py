@@ -1,16 +1,11 @@
 #!/usr/bin/env python
 #coding:utf-8
-"""
-  Author:  --<Steven C. Howell>
-  Purpose: Store the methods removed from the cgDNA_move.py module
-  Created: 08/28/2014
-  $Id: $
-"""
-#!/usr/bin/env python
+#
 # Author:  Steven C. Howell
-# Purpose:
-# Created: XX/XX/201X
-# $Id: $
+# Purpose: Store the methods removed from the cgDNA_move.py module
+# Created: 28 August 2014
+# $Id$
+#
 
 import sys
 import os

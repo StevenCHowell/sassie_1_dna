@@ -1,8 +1,11 @@
 #!/usr/bin/env python
+#
 # Author:  Steven C. Howell
 # Purpose: Replace DNA sequence with another sequence
-# Created: 04/24/2014
-# $Id: pdb2psfgen.py,v 1.6 2014-10-14 15:45:38 schowell Exp $
+# Created: 24 April 2014
+#
+# $Id$
+# 
 '''
 This script loads a pdb structure file of DNA, and creates a '*.patches' file
 with the psfgen patches needed to use psfgen to create the structure.

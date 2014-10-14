@@ -1,5 +1,11 @@
 #!/bin/bash
-# $Id: updateWCA.sh,v 1.2 2014-05-23 20:00:27 schowell Exp $
+#
+# Author:  Steven C. Howell
+# Purpose: build the WCA energy calculator
+# Created: January 2014
+#
+# $Id$
+#
 cd /home/schowell/sassie_0.99_rev_1176/sassie/simulate/energy/extensions/non_bonding
 cp /home/schowell/Dropbox/gw_phd/code/pylib/sassie/electrostatics.f ./
 sudo python setup_electrostatics.py build

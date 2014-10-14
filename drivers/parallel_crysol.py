@@ -2,7 +2,7 @@
 # Auther: Steven C. Howell
 # Purpose: Run crysol in parrallel with consolidated output
 # Created: 10/09/2014
-# $Id: parallel_crysol.py,v 1.2 2014-10-09 23:28:44 schowell Exp $
+# $Id$
 
 import sys
 import os

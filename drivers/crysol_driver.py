@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# Author:  Steven C. Howell
+# Purpose: script for running crysol using SASSIE standard while accepting command line input
+# Created: 10 September 2014                                                   
+# $Id$
+
 import sys
 import sassie.interface.input_filter as input_filter
 import sassie.calculate.gcrysol as gcrysol

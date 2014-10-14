@@ -1,5 +1,10 @@
 #!/bin/bash
-# $Id: $
+#
+# Author:  Steven C. Howell
+# Purpose: build a local version of the collision calculator
+# Created: August 2014
+#
+# $Id$
 
 /usr/bin/env python setup_collision.py build
 

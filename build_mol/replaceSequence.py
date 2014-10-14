@@ -1,8 +1,11 @@
 #!/usr/bin/env python
+#
 # Author:  Steven C. Howell
 # Purpose: Replace DNA sequence with another sequence
-# Created: 04/24/2014
-# $Id: replaceSequence.py,v 1.2 2014-05-23 14:15:21 schowell Exp $
+# Created: 24 April 2014
+#
+# $Id$
+#
 '''
 This script loads a pdb structure file of DNA, replaces the DNA sequence,
 then saves the result as a new pdb.  The pdb input should just be the DNA

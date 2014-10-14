@@ -1,7 +1,14 @@
-% $Id: plotDNA.m,v 1.5 2014-01-10 17:36:29 schowell Exp $
-% script to plot the results of calculating the Re and Rg of DNA
+% Author:  Steven C. Howell
+% Purpose: script to plot the results of calculating the Re and Rg of DNA
+% Created: January 2014
+%
+% $Id$
+% 
 %
 % data columns: moves  rg/lp      re/lp           a       r
+%
+%
+
 clc;clc;
 % close all;
 

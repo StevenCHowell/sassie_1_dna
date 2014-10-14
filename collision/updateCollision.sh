@@ -1,5 +1,11 @@
 #!/bin/bash
-# $Id: updateCollision.sh,v 1.4 2014-10-14 15:45:38 schowell Exp $
+#
+# Author:  Steven C. Howell
+# Purpose: build the calculator for calculating energy between each pair of atoms
+# Created: May 2014
+# $Id$
+#
+
 ORIGINAL=`pwd`
 DIR="/usr/local/lib/python2.7/dist-packages/sassie/simulate/energy/extensions/non_bonding/"
 cp collision.f $DIR -f

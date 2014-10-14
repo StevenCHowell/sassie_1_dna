@@ -3,7 +3,7 @@
 # Author:  Steven C. Howell
 # Purpose: methods for calculating DNA dihedral angles and generating plots
 # Created: 22 September 2014
-# $Id: dna_dihedral.py 70 2014-10-14 18:27:11Z schowell $
+# $Id$
 
 import sassie.sasmol.sasmol as sasmol
 import numpy

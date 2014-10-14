@@ -1,8 +1,19 @@
 #!/usr/bin/python
-# $Id: cgDNA_move_M.py,v 1.2 2014-01-16 17:53:30 schowell Exp $
+#
+# Author:  Steven C. Howell
+# Purpose: branched off cgDNA_move.py, keeps matrix of changes for each bead
+# Created: 1 Decemeber 2013
+#
+# $Id$
+#
 # time using FORTRAN double loop, N=1000, iters=1000 (so 1*10^6 steps): 958.887075186 seconds
 # time using python double loop, N=1000, iters=1000 (so 1*10^6 steps): 
-
+'''
+This version of cgDNA_move.py keeps a matrix M of all the coordinate transformations
+performed on each bead of the cg-DNA. This matrix could be multiplied by the original
+coordinates to transform them to the final structure.  Abandoned this approach but it
+may be useful later.
+'''
 import sassie.sasmol.sasmol as sasmol
 import numpy as np,string,os,locale,sys,random
 
