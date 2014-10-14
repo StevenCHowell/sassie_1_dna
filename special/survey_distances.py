@@ -1,4 +1,4 @@
-# $Id: survey_distances.py,v 1.3 2014-10-14 15:45:38 schowell Exp $
+# $Id$
 import os,sys,locale,string,numpy as np,math
 import sassie.sasmol.sasmol as sasmol
 from dna import collision
