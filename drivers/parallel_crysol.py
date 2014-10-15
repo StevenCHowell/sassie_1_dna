@@ -6,6 +6,7 @@
 
 import sys
 import os
+import errno
 import os.path as op
 import subprocess
 import logging
@@ -44,6 +45,18 @@ def parse():
                         help = 'time between checks for crysol to finish'
                         )
     return parser.parse_args()
+
+def mkdir_p(path):
+    '''
+    make directory recursively
+    adapted from http://stackoverflow.com/questions/600268/
+    '''
+    try:
+        os.makedirs(path)
+    except OSError as exc: # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else: raise
 
 def append_bk(folder):
     new_folder = folder + '_BK'
@@ -120,32 +133,46 @@ def tail(f, n=10):
     stdout.close()
     return lines[:]
 
-def collect_crysol(sub_dirs):
-    outdir = ARGS.runname + '/crysol'
-    os.mkdir(outdir)
+def collect_crysol(sub_dirs, runname, sleep):
+    out_dir = os.getcwd() + '/' + runname + '/crysol'
+    mkdir_p(out_dir)
     
     n_out_files = 1
     
-    time.sleep(ARGS.sleep)
     for (i, sub_dir) in enumerate(sub_dirs):
         logging.debug('waiting for %s' % sub_dir)
         with cd(sub_dir):
             # read the end of the file test.out
-            out_file = 'par_crysol_%02d.out' % (i+1)
-            while tail(out_file, 1) != ['GCRYSOL IS DONE\n']:
-                time.sleep(ARGS.sleep)
+            # out_file = 'par_crysol_%02d.out' % (i+1)
+            out_files = glob.glob('*out')
+            not_done = True
+            while not_done:
+                time.sleep(sleep)
+                for (j, out_file) in enumerate(out_files):
+                    if tail(out_file, 1) == ['GCRYSOL IS DONE\n']:
+                        not_done = False
 
-            print 'sub_run %d is complete' % i
-            sub_files = glob.glob('par/crysol/*int')
+            print '%s is complete' % sub_dir
+            sub_files = glob.glob('*/crysol/*int')
+            more_sub_files = glob.glob('crysol/*int')
+            n_sub_files = len(sub_files)
+            n_more_sub_files = len(more_sub_files)
+            if n_sub_files > 0 and n_more_sub_files > 0:
+                logging.warning(('found crysol output in both "./*/crysol/" '
+                    '(%d files) and "./crysol/" (%d files), order may be '
+                    'unexpected') % (n_sub_files, n_more_sub_files) )
+            for another_file in more_sub_files:
+                sub_files.append(another_file)
+                
             error = sub_files.sort()
             for (j, sub_file) in enumerate(sub_files):
                 logging.debug('moving %s' % sub_file)
                 file_name = sub_file[:-4]
-                new_name = ARGS.runname + '_' + str(n_out_files + j).zfill(5)
-                logging.debug('moving %s%s to %s/crysol/%s' % (sub_dir, 
-                                    file_name, ARGS.runname, new_name))
-                os.system('mv %s.int ../crysol/%s.int' % (file_name, new_name))
-                os.system('mv %s.log ../crysol/%s.log' % (file_name, new_name))                
+                new_name = runname + '_' + str(n_out_files + j).zfill(5)
+                logging.debug('moving %s%s.int to %s/%s.int' % (sub_dir, 
+                                    file_name, out_dir, new_name))
+                os.system('mv %s.int %s/%s.int' % (file_name, out_dir, new_name))
+                os.system('mv %s.log %s/%s.log' % (file_name, out_dir, new_name))                
                 
             os.system('mv *out *dcd *pdb ../')
             n_out_files += len(sub_files)
@@ -179,7 +206,7 @@ def split_dcd():
         result = folder.cmdloop()
 
     print 'created new run folder: %s' % ARGS.runname
-    os.mkdir(ARGS.runname)
+    mkdir_p(ARGS.runname)
     
     mol = sasmol.SasMol(0)
     mol.read_pdb(ARGS.pdb)
@@ -222,7 +249,7 @@ def main():
     iterate_crysol(sub_dirs, dcd_file_names)
     
     #collect the results
-    collect_crysol(sub_dirs)
+    collect_crysol(sub_dirs, ARGS.runname, ARGS.sleep)
 
     print 'finished all crysol calculations\n     \m/ >.< \m/ '
 
@@ -230,7 +257,7 @@ if __name__ == '__main__':
     import argparse
     
     if '-v' in sys.argv:
-        logging.basicConfig(filename='_log-%s' %__name__, level=logging.DEBUG)
+        logging.basicConfig(filename='%s.log' %__file__[:-3], level=logging.DEBUG)
         sys.argv.pop(sys.argv.index('-v'))
     else:
         logging.basicConfig()
