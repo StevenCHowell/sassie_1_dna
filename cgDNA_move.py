@@ -11,7 +11,8 @@
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
 
 import sassie.sasmol.sasmol as sasmol, numpy as np
-import collision, random, warnings, time, os, argparse
+import dna.energy.collision as collision
+import random, warnings, time, os, argparse
 
 try: 
     import cPickle as pickle

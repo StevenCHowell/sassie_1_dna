@@ -131,9 +131,13 @@ cf2py intent(hide):: x1,y1,z1
                y2=coor(j,2)
                z2=coor(j,3)
 
-               dx2=(x1-x2)*(x1-x2)
-               dy2=(y1-y2)*(y1-y2)
-               dz2=(z1-z2)*(z1-z2)
+               dx = x2-x1
+               dy = y2-y1
+               dz = z2-z1
+
+               dx2=dx*dx
+               dy2=dy*dy
+               dz2=dz*dz
                rij=sqrt(dx2+dy2+dz2)
 
                if(rij . LT . cutoff) then
