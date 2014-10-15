@@ -169,7 +169,7 @@ def collect_crysol(sub_dirs, runname, sleep):
                 logging.debug('moving %s' % sub_file)
                 file_name = sub_file[:-4]
                 new_name = runname + '_' + str(n_out_files + j).zfill(5)
-                logging.debug('moving %s%s.int to %s/%s.int' % (sub_dir, 
+                logging.debug('moving %s/%s.int to %s/%s.int' % (sub_dir, 
                                     file_name, out_dir, new_name))
                 os.system('mv %s.int %s/%s.int' % (file_name, out_dir, new_name))
                 os.system('mv %s.log %s/%s.log' % (file_name, out_dir, new_name))                
