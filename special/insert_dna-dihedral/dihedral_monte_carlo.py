@@ -194,8 +194,8 @@ def get_rotation_indices(m1,molecule_type,flexible_residues,txtOutput):
         		indices = m1.get_indices_from_mask(this_mask)
 			residue_rotation_indices[q0] = indices.tolist()
 
-		print 'residue_rotation_indices = ',residue_rotation_indices
-		print 'residue_rotation_mask = ',residue_rotation_mask
+#		print 'residue_rotation_indices = ',residue_rotation_indices
+#		print 'residue_rotation_mask = ',residue_rotation_mask
 		
 
 	else:

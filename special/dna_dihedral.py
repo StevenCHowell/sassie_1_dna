@@ -247,7 +247,7 @@ def plot_dna_compare_dyhedral(n0_all_angles, nm_all_angles, m__all_angles):
 
 
 
-def plot_dna_min_dyhedral(min_angles, raw_angles, theta_max):
+def plot_dna_min_dyhedral(min_angles, raw_angles):
     logging.debug('testing')
     plt.ion()
     (n_thetas, n_frames, n_bps, n_angles) = min_angles.shape
@@ -429,13 +429,13 @@ def load_angles(file_name):
     return numpy.array(all_frames)
     
 def get_angles(dcd_file_name, pdb_file_name, first_last_resid, flex_file, nf=0):
+    from dna.cgDNA_move import read_flex_resids
     
     txtOutput = []
     
     out_file = open(dcd_file_name[:-4] + '.ddat','w')
 
     # read flex file
-    from cp_cgDNA_move import read_flex_resids
     # flex_file = pdb_file_name[:-3] + 'flex'
     (segnames, flex_resids) = read_flex_resids(flex_file)
 
@@ -460,7 +460,7 @@ def get_angles(dcd_file_name, pdb_file_name, first_last_resid, flex_file, nf=0):
     residue_rotation_indices,residue_rotation_mask = dmc.get_rotation_indices(
         mol,molecule_type,flexible_residues,txtOutput)
 
-    print "residue_rotation_indices = ",residue_rotation_indices
+    # print "residue_rotation_indices = ",residue_rotation_indices
 
     # first_last_resid = [flexible_residues[0], flexible_residues[-1]]
 
@@ -484,12 +484,8 @@ def get_angles(dcd_file_name, pdb_file_name, first_last_resid, flex_file, nf=0):
     if nf == 0:
         nf = dcdfile[2]  # number of frames
         
-    reslist = []
-
-    for i in xrange(first_last_resid[0],first_last_resid[1]+1):
-        reslist.append(i)
-
-    print 'reslist = ',reslist
+    # reslist = range(first_last_resid[0],first_last_resid[1]+1)
+    # print 'reslist = ',reslist
 
     st1 = "# base\talpha\tbeta\tgamma\tdelta\tepsilon\tzeta\tchi\n"
     out_file.write("%s" % (st1))
