@@ -8,13 +8,13 @@ C
 C         1         2         3         4         5         6         7
 C123456789012345678901234567890123456789012345678901234567890123456789012
 C
-        subroutine coulomb(coor,charge,t,switchd,nbcutoff,natoms)
+        subroutine coulomb(coor,charge,e,t,switchd,nbcutoff,natoms,el,el2)
       
         integer natoms,i,j,np
         double precision coor(natoms,3) 
         double precision charge(natoms)
         double precision t,switchd,nbcutoff
-        double precision elenergy,elenergy2
+        double precision el,el2
 
         double precision pi,qconv,qconv2,eps,ang2m,jtokjpmol
         double precision kjtokcal,conv,conv2
@@ -24,7 +24,7 @@ C
         double precision arg1,arg2,arg3,qi,qj,kb
         
 cf2py intent(in) :: coor,charge,t,natoms,switchd,nbcutoff
-cf2py intent(out):: elenergy,elenergy2
+cf2py intent(out):: el,el2
 cf2py intent(hide):: i,j,np,pi,qconv,qconv2,eps,ang2m,jtokjpmol
 cf2py intent(hide):: kjtokcal,conv,conv2
 cf2py intent(hide):: xi,yi,zi,xj,yj,zj
@@ -49,19 +49,19 @@ C kB --> (J/K):
         kb=1.3806488E-23
         
         pi=dacos(-1d0)
-C        conv=(qconv2/(4.0*pi*eps*ang2m))*jtokjpmol*kjtokcal
+C        conv=(qconv2/(4.0*pi*eps*ang2m*e))*jtokjpmol*kjtokcal
 C        conv=332.4683
-         conv=332.06
+         conv=332.06/e
 
 C       conversion to unitless energy (t: temperature in kelvin)
-        conv2=qconv2/(4.0*pi*eps*ang2m*kb*t)        
+        conv2=qconv2/(4.0*pi*eps*ang2m*e*kb*t)        
 
         np=0
 
 C  bppbi*bppbj/rij
 
-        elenergy = 0d0
-        elenergy2 = 0d0
+        el = 0d0
+        el2 = 0d0
         switchscale = 1d0
 
         do 200,i=1,natoms-3
@@ -97,17 +97,17 @@ C  bppbi*bppbj/rij
 
                vij=((qi*qj)/(rij))*switchscale
 
-               elenergy=elenergy+vij
+               el=el+vij
              
-C               write(*,*) 'el = ',elenergy
+C               write(*,*) 'el = ',el
  
                np=np+1
 
   100   continue
   200   continue
 
-        elenergy2 = elenergy*conv2
-        elenergy = elenergy*conv
+        el2 = el*conv2
+        el = el*conv
 
         end
 
