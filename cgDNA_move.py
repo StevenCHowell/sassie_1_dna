@@ -60,51 +60,54 @@ def make_cg_dna(dna_segnames, dna_resids, bp_per_bead, aa_all, frame=0):
 
     print "coarse-graining the DNA, this may take awhile..."
     tic = time.time()
+
+    bp_per_bead = np.ones(nbeads,dtype=int) * bp_per_bead
+    
     for j in xrange(nbeads):
 
         bead = sasmol.SasMol(0)
-        if bp_per_bead > 1:
+        if bp_per_bead[j] > 1:
             if j+1 == nbeads:
-                bp_per_bead = bps - bp_per_bead*j  # account for remainder
+                bp_per_bead[j] = bps - bp_per_bead[j] * j # accomodate remainder
 
             # Get the atoms from DNA strand 1
             if resid1[0] < resid1[1]:
-                r1b = r1a + bp_per_bead  # r1b > r1a
+                r1b = r1a + bp_per_bead[j]  # r1b > r1a
                 basis_filter1 = ("((resid[i] > "+str(r1a-1)+" and "
                                  "resid[i] < "+str(r1b)+") and "
                                  "(segname[i]=='"+dna1+"')) or ")
             else:
-                r1b = r1a - bp_per_bead  # r1b < r1a
+                r1b = r1a - bp_per_bead[j]  # r1b < r1a
                 basis_filter1 = ("((resid[i] > "+str(r1b)+" and "
                                  "resid[i] < "+str(r1a+1)+") and "
                                  "(segname[i]=='"+dna1+"')) or ")
     
             # Get the atoms from DNA strand 2
             if resid2[0] < resid2[1]:
-                r2b = r2a + bp_per_bead  # r2b > r2a
+                r2b = r2a + bp_per_bead[j]  # r2b > r2a
                 basis_filter2 = ("((resid[i] > "+str(r2a-1)+" and "
                                  "resid[i] < "+str(r2b)+") and "
                                  "(segname[i]=='"+dna2+"'))")
             else:
-                r2b = r2a - bp_per_bead   # r2b < r2a
+                r2b = r2a - bp_per_bead[j]   # r2b < r2a
                 basis_filter2 = ("((resid[i] > "+str(r2b)+" and "
                                  "resid[i] < "+str(r2a+1)+") and "
                                  "(segname[i]=='"+dna2+"'))")
         else:
             # Get the atoms from DNA strand 1
             if resid1[0] < resid1[1]:
-                r1b = r1a + bp_per_bead  # r1b > r1a
+                r1b = r1a + bp_per_bead[j]  # r1b > r1a
             else:
-                r1b = r1a - bp_per_bead  # r1b < r1a
+                r1b = r1a - bp_per_bead[j]  # r1b < r1a
             
             basis_filter1 = ("((resid[i] == "+str(r1a)+") and "
                              "(segname[i]=='"+dna1+"')) or ")
     
             # Get the atoms from DNA strand 2
             if resid2[0] < resid2[1]:
-                r2b = r2a + bp_per_bead  # r2b > r2a
+                r2b = r2a + bp_per_bead[j]  # r2b > r2a
             else:
-                r2b = r2a - bp_per_bead   # r2b < r2a
+                r2b = r2a - bp_per_bead[j]   # r2b < r2a
 
             basis_filter2 = ("((resid[i]== "+str(r2a)+") and "
                              "(segname[i]=='"+dna2+"'))")
@@ -137,7 +140,8 @@ def make_cg_dna(dna_segnames, dna_resids, bp_per_bead, aa_all, frame=0):
     vecXYZ[2] = [0, 0, 1]
     toc = time.time() - tic
     print 'DNA coarse-graining took %f seconds' % toc
-    return (aa_dna, aa_dna_mask, cg_dna, all_beads, dna_bead_masks, vecXYZ)
+    return (aa_dna, aa_dna_mask, cg_dna, all_beads, dna_bead_masks, vecXYZ,
+            bp_per_bead)
 
 def make_cg_pro(aa_all, pro_groups, frame=0):
     # load the protein into its own sasmol object
@@ -211,9 +215,9 @@ def is_bead_flexible(flex_resids, nbeads, resid1, bp_per_bead):
     r1a = resid1[0]
     for j in xrange(nbeads):
         if resid1[0] < resid1[1]:
-            r1b = r1a + bp_per_bead  # r1b > r1a
+            r1b = r1a + bp_per_bead[j]  # r1b > r1a
         else:
-            r1b = r1a - bp_per_bead  # r1b < r1a            
+            r1b = r1a - bp_per_bead[j]  # r1b < r1a            
         ## check residues from DNA strand 1 to see if this is a flexible bead
         for i in xrange(r1a, r1b):
             if i in flexResids[:, 0]:
@@ -1060,6 +1064,8 @@ def parse():
                 "the bending); default = 1") )
     parser.add_argument("-bp", "--bp_per_bead", default=1, type=int,
         help = "Number of bp for each coarse-grained bead; default = 1")
+    parser.add_argument("-t", "--temp", default=300, type=float,
+        help = "Temperature for calculating the coulomb energy; default = 278")
     parser.add_argument("-fl", "--flex", default=False, action="store_true",
         help = ("Generate output file with the flexible resids formatted into "
                 "2 columns.  The first row contains the segnames for the 2 "
@@ -1298,8 +1304,9 @@ def main():
 
         (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, trialbeads, beadgroups, 
         move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, cg_pgroup_masks, 
-        all_proteins, aa_all, aa_pro_mask, aa_dna_mask) = get_cg_parameters(
-            ARGS, flex_resids, pro_groups, dna_resids, dna_segnames)
+        all_proteins, aa_all, aa_pro_mask, aa_dna_mask, bp_per_bead
+        ) = get_cg_parameters(ARGS, flex_resids, pro_groups, dna_resids,
+                              dna_segnames)
         
         toc = time.time() - tic 
         print 'Total coarse-grain time = %f seconds' % toc        
@@ -1364,6 +1371,7 @@ def get_cg_parameters(ARGS, flex_resids, pro_groups, dna_resids,
         ARGS_old        = pickle.load(pkl_in)        
         flex_resids_old = pickle.load(pkl_in)
         pro_groups_old  = pickle.load(pkl_in)
+        bp_per_bead     = pickle.load(pkl_in)
         
         pkl_in.close()
         
@@ -1394,8 +1402,8 @@ def get_cg_parameters(ARGS, flex_resids, pro_groups, dna_resids,
     if do_cg_dna:
         #~~~ DNA ONLY SECTION ~~~#
         (aa_dna, aa_dna_mask, cg_dna, all_beads, dna_bead_masks, 
-         vecXYZ) = make_cg_dna(dna_segnames, dna_resids, ARGS.bp_per_bead, 
-                               aa_all)
+         vecXYZ, bp_per_bead) = make_cg_dna(dna_segnames, dna_resids, 
+                                            ARGS.bp_per_bead, aa_all)
         do_dna_flex = True
         
     if do_dna_flex:
@@ -1436,7 +1444,7 @@ def get_cg_parameters(ARGS, flex_resids, pro_groups, dna_resids,
         pickle.dump(ARGS, pkl_out, -1)
         pickle.dump(flex_resids, pkl_out, -1)
         pickle.dump(pro_groups, pkl_out, -1)        
-        
+        pickle.dump(bp_per_bead, pkl_out, -1)
         pkl_out.close()
     
     # this is important for re-aligning the proteins after moving them
@@ -1446,7 +1454,8 @@ def get_cg_parameters(ARGS, flex_resids, pro_groups, dna_resids,
     
     return (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, trialbeads, beadgroups, 
             move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, 
-            cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask)
+            cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask,
+            bp_per_bead)
 
 
 
