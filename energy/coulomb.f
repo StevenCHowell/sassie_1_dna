@@ -8,11 +8,11 @@ C
 C         1         2         3         4         5         6         7
 C123456789012345678901234567890123456789012345678901234567890123456789012
 C
-        subroutine coulomb(coor,charge,e,t,switchd,nbcutoff,natoms,el,el2)
+        subroutine coulomb(coor,charge,e,t,switchd,nbcutoff,n,el,el2)
       
-        integer natoms,i,j,np
-        double precision coor(natoms,3) 
-        double precision charge(natoms)
+        integer n,i,j,np
+        double precision coor(n,3) 
+        double precision charge(n)
         double precision t,switchd,nbcutoff
         double precision el,el2
 
@@ -23,7 +23,7 @@ C
         double precision rij,switchscale,vij
         double precision arg1,arg2,arg3,qi,qj,kb
         
-cf2py intent(in) :: coor,charge,t,natoms,switchd,nbcutoff
+cf2py intent(in) :: coor,charge,e,t,n,switchd,nbcutoff
 cf2py intent(out):: el,el2
 cf2py intent(hide):: i,j,np,pi,qconv,qconv2,eps,ang2m,jtokjpmol
 cf2py intent(hide):: kjtokcal,conv,conv2
@@ -64,12 +64,12 @@ C  bppbi*bppbj/rij
         el2 = 0d0
         switchscale = 1d0
 
-        do 200,i=1,natoms-3
+        do 200,i=1,n-3
             qi=charge(i)
             xi=coor(i,1)
             yi=coor(i,2)
             zi=coor(i,3)
-            do 100,j=i+3,natoms
+            do 100,j=i+3,n
                qj=charge(j)
                xj=coor(j,1)
                yj=coor(j,2)
