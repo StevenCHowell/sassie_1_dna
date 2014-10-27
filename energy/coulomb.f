@@ -13,7 +13,7 @@ C
         integer n,i,j,np
         double precision coor(n,3) 
         double precision charge(n)
-        double precision t,switchd,nbcutoff
+        double precision e,t,switchd,nbcutoff
         double precision el,el2
 
         double precision pi,qconv,qconv2,eps,ang2m,jtokjpmol
@@ -110,7 +110,113 @@ C               write(*,*) 'el = ',el
         el = el*conv
 
         end
+        
+C123456789012345678901234567890123456789012345678901234567890123456789012
+C
+        subroutine screen_coulomb(coor,charge,e,t,ld,switchd,nbcutoff,n,
+     cel,el2)
+      
+        integer n,i,j,np
+        double precision coor(n,3) 
+        double precision charge(n)
+        double precision ld,e,t,switchd,nbcutoff
+        double precision el,el2
 
+        double precision pi,qconv,qconv2,eps,ang2m,jtokjpmol
+        double precision kjtokcal,conv,conv2
+        double precision xi,yi,zi,xj,yj,zj
+        double precision dx,dy,dz,dx2,dy2,dz2
+        double precision rij,switchscale,vij
+        double precision arg1,arg2,arg3,qi,qj,kb
+        
+cf2py intent(in) :: coor,charge,ld,e,t,n,switchd,nbcutoff
+cf2py intent(out):: el,el2
+cf2py intent(hide):: i,j,np,pi,qconv,qconv2,eps,ang2m,jtokjpmol
+cf2py intent(hide):: kjtokcal,conv,conv2
+cf2py intent(hide):: xi,yi,zi,xj,yj,zj
+cf2py intent(hide):: dx,dy,dz,dx2,dy2,dz2
+cf2py intent(hide):: rij,switchscale,vij
+cf2py intent(hide):: arg1,arg2,arg3,qi,qj,kb
+
+C eV --> C                        (yes)
+        qconv=1.602177E-19        
+C q*q --> C^2                     (yes) 
+        qconv2=qconv*qconv        
+C epsilon --> C^2/(J*m)           (yes) 
+        eps=8.854187817E-12       
+C angstrom --> m                  (yes) 
+        ang2m=1E-10
+C J --> KJ/mol                    (yes) 
+        jtokjpmol=6.02214129E+20 
+C KJ --> kcal                     (yes)
+        kjtokcal=1d0/4.184
+
+C kB --> (J/K):
+        kb=1.3806488E-23
+        
+        pi=dacos(-1d0)
+C        conv=(qconv2/(4.0*pi*eps*ang2m*e))*jtokjpmol*kjtokcal
+C        conv=332.4683
+         conv=332.06/e
+
+C       conversion to unitless energy (t: temperature in kelvin)
+        conv2=qconv2/(4.0*pi*eps*ang2m*e*kb*t)        
+
+        np=0
+
+C  bppbi*bppbj/rij
+
+        el = 0d0
+        el2 = 0d0
+        switchscale = 1d0
+
+        do 200,i=1,n-3
+            qi=charge(i)
+            xi=coor(i,1)
+            yi=coor(i,2)
+            zi=coor(i,3)
+            do 100,j=i+3,n
+               qj=charge(j)
+               xj=coor(j,1)
+               yj=coor(j,2)
+               zj=coor(j,3)
+
+               dx = xj-xi
+               dy = yj-yi
+               dz = zj-zi
+
+               dx2=dx*dx
+               dy2=dy*dy
+               dz2=dz*dz
+               rij=sqrt(dx2+dy2+dz2)
+
+               if(rij . LE . switchd) then
+                  switchscale=1d0
+               else if(rij .GT. switchd .AND. rij .LE. nbcutoff) then 
+                  arg1 = (nbcutoff-rij)*(nbcutoff-rij)
+                  arg2 = (nbcutoff+2.0*rij-3.0*switchd)
+                  arg3 = ((nbcutoff-switchd)**3.0)
+                  switchscale = (arg1*arg2)/arg3
+               else if (rij .GT. nbcutoff) then
+                  switchscale=0d0
+               end if
+
+               vij=((qi*qj)/(rij))*exp(-rij/ld)*switchscale
+
+               el=el+vij
+             
+C               write(*,*) 'el = ',el
+ 
+               np=np+1
+
+  100   continue
+  200   continue
+
+        el2 = el*conv2
+        el = el*conv
+
+        end
+        
 C ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 C ~~~~~~Original Code from J. E. Curtis~~~~~
 C ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

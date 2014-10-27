@@ -236,9 +236,12 @@ def dna_mc_save_info(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp,
             switchd = 200
             nbcutoff = 350
             e = 78.54        # dielectric constant for pure water
-            e = 1            # dielectric constant for vacuum
-            (Uel_kCpM1, Uel1) = coulomb.coulomb(cg_dna.coor(), 
-                            charge, e, ARGS.temp, switchd, nbcutoff)            
+            # e = 1            # dielectric constant for vacuum
+            # (Uel_kCpM1, Uel1) = coulomb.coulomb(cg_dna.coor(), 
+                            # charge, e, ARGS.temp, switchd, nbcutoff)            
+            ld = 9.61       # debye screening constant in Angstroms
+            (Uel_kCpM1, Uel1) = coulomb.screen_coulomb(cg_dna.coor(), 
+                            charge, e, ARGS.temp, ld, switchd, nbcutoff)            
             # store the energies for analysis
             rg[n_accept]       = rg_new
             Uel_kCpM[n_accept] = Uel_kCpM1
@@ -494,22 +497,26 @@ def make_plots(rg, Uel_kCpM, Uel, Uwca, Ub):
 
     n_steps = len(rg)
     steps = np.linspace(1,n_steps,n_steps)
-
+    
     leg_Uel = r'U_el: %0.1f +/- %0.1f' % (np.mean(Uel), np.std(Uel))
-    leg_Uel_kCpM = r'U_kC/M: %0.1f +/- %0.1f' % (np.mean(Uel_kCpM), np.std(Uel_kCpM))    
-    leg_Uwca = r'U_WCA: %0.1f +/- %0.1f' % (np.mean(Uwca), np.std(Uwca))
-    leg_Ub = r'U_bend: %0.1f +/- %0.1f' % (np.mean(Ub), np.std(Ub))
-
     plt.plot(steps, Uel, 's', label=leg_Uel, ms=10)
-    plt.plot(steps, Uel_kCpM, 's', label=leg_Uel_kCpM, ms=10)    
+
+    leg_Uwca = r'U_WCA: %0.1f +/- %0.1f' % (np.mean(Uwca), np.std(Uwca))
     plt.plot(steps, Uwca, 'o', label=leg_Uwca, ms=10)
+
+    leg_Ub = r'U_bend: %0.1f +/- %0.1f' % (np.mean(Ub), np.std(Ub))
     plt.plot(steps, Ub, '>', label=leg_Ub, ms=10)
+
+    # leg_Uel_kCpM = r'U_kC/M: %0.1f +/- %0.1f' % (np.mean(Uel_kCpM), np.std(Uel_kCpM))    
+    # plt.plot(steps, Uel_kCpM, 's', label=leg_Uel_kCpM, ms=10)    
 
     lg = plt.legend(numpoints=1,loc=0)    
     # lg.draw_frame(False)
     plt.xlim(0,n_steps+1)
+    plt.xlabel('structure #')
+    plt.ylabel('Energy (kT)')
+    plt.title('Energy Comparison for each Structure')
     plt.show()
-    plt.title('Energy Comparison')
 
     print 'pause'
 
@@ -526,8 +533,9 @@ def coulomb_energy(r, switchd, nbcutoff):
     
     for (i, ri) in enumerate(r):
         coor[-1,0] = ri
-        (Uel_kCpM1[i], Uel1[i]) = coulomb.coulomb(coor, charge, e, ARGS.temp, switchd, nbcutoff)
-
+        # (Uel_kCpM1[i], Uel1[i]) = coulomb.coulomb(coor, charge, e, ARGS.temp, switchd, nbcutoff)
+        (Uel_kCpM1[i], Uel1[i]) = coulomb.screen_coulomb(
+            coor, charge, e, ARGS.temp, 9.61, switchd, nbcutoff) # screened
 
     return (Uel_kCpM1, Uel1)
 
@@ -552,10 +560,11 @@ def determine_cutoff():
     lg = plt.legend()
     lg.draw_frame(False)
     plt.xlim(0,1000)
-    plt.ylim(0,100)
+    plt.ylim(0,1)
     plt.ylabel('Coulomb Energy (unitless)')
     plt.xlabel('distance (A)')
-    plt.title('Unscreened Electrostatic between two base-pairs (-2q / bp)')
+    # plt.title('Unscreened Electrostatic between two base-pairs (-2q / bp)')
+    plt.title('Screened Electrostatic between two base-pairs (-2q / bp)')    
     plt.show()
     print 'pause'
 
@@ -574,8 +583,8 @@ if __name__ == "__main__":
 
     ARGS = dna_move.parse()  # this makes ARGS global
 
-    main()
+    # main()
     
-    # determine_cutoff()
+    determine_cutoff()
     
     print '\nFinished %d successful DNA moves! \n\m/ >.< \m/' % ARGS.nsteps
