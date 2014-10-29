@@ -243,10 +243,10 @@ def dna_mc_save_info(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp,
             e = 78.54        # dielectric constant for pure water
             # e = 1            # dielectric constant for vacuum
             # (Uel_kCpM1, Uel1) = coulomb.coulomb(cg_dna.coor(), 
-                            # charge, e, ARGS.temp, switchd, nbcutoff)            
+                            # charge, e, ARGS.temperature, switchd, nbcutoff)            
             ld = 9.61       # debye screening constant in Angstroms
             (Uel_kCpM1, Uel1) = coulomb.screen_coulomb(cg_dna.coor(), 
-                            charge, e, ARGS.temp, ld, switchd, nbcutoff)            
+                            charge, e, ARGS.temperature, ld, switchd, nbcutoff)            
             # store the energies for analysis
             rg[n_accept]       = rg_new
             Uel_kCpM[n_accept] = Uel_kCpM1
@@ -541,9 +541,9 @@ def coulomb_energy(r, switchd, nbcutoff):
     
     for (i, ri) in enumerate(r):
         coor[-1,0] = ri
-        # (Uel_kCpM1[i], Uel1[i]) = coulomb.coulomb(coor, charge, e, ARGS.temp, switchd, nbcutoff)
+        # (Uel_kCpM1[i], Uel1[i]) = coulomb.coulomb(coor, charge, e, ARGS.temperature, switchd, nbcutoff)
         (Uel_kCpM1[i], Uel1[i]) = coulomb.screen_coulomb(
-            coor, charge, e, ARGS.temp, 9.61, switchd, nbcutoff) # screened
+            coor, charge, e, ARGS.temperature, 9.61, switchd, nbcutoff) # screened
 
     return (Uel_kCpM1, Uel1)
 

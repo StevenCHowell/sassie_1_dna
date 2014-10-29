@@ -139,7 +139,7 @@ def make_cg_dna(dna_segnames, dna_resids, bp_per_bead, aa_all, frame=0):
     vecXYZ[1] = [0, 1, 0]
     vecXYZ[2] = [0, 0, 1]
     toc = time.time() - tic
-    print 'DNA coarse-graining took %f seconds' % toc
+    print 'DNA coarse-graining took %0.3f seconds' % toc
     return (aa_dna, aa_dna_mask, cg_dna, all_beads, dna_bead_masks, vecXYZ,
             bp_per_bead)
 
@@ -191,7 +191,7 @@ def make_cg_pro(aa_all, pro_groups, frame=0):
             move_masks[i] += move_masks[j]
             
     toc = time.time() - tic
-    print 'Protein coarse-graining took %f seconds' % toc
+    print 'Protein coarse-graining took %0.3f seconds' % toc
     
     return (aa_pro, aa_pro_mask, cg_pro, cg_pgroup_masks, aa_pgroup_masks, 
             all_proteins, move_masks)
@@ -592,32 +592,6 @@ def energyBend(lpl, u, l):
 
     return res*lpl
 
-def p_energy_wca(w, coor, wca0, trial_bead):
-    '''
-    this function finds the Weeks-Chandler-Anderson repulsion E/kt for N
-    beads connected by N-1 rods together representing a worm-like chain.
-    w is the effective width of the chain
-    coor contains the xyz-coordinates of the beads
-    '''
-    wca1 = np.copy(wca0)
-    test = 2.**(1./6.)*w
-    (N, col) = coor.shape
-    for i in xrange(trial_bead, N):
-        ri = coor[i, :]
-        for j in xrange(0, i):
-            rj = coor[j, :]
-            rij = np.sqrt((ri[0]-rj[0])**2. +
-                          (ri[1]-rj[1])**2. +
-                          (ri[2]-rj[2])**2.)
-            #s print '(2^(1/6)*w, rij) = ', (test, rij)
-            if rij < test:
-                wca1[i, j] = (w/rij)**12.-(w/rij)**6.+0.25
-            else:
-                wca1[i, j] = 0
-    res = 4*np.sum(wca1)
-    #s print 'U_wca =', res*4
-    return (res, wca1)
-
 def f_energy_wca(w, coor, wca0, trial_bead):
     '''
     this function finds the Weeks-Chandler-Anderson repulsion E/kt for N
@@ -725,13 +699,13 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
     #s print "(u, l) =", (u, l) # debug info
     lpl = lp/l  # setup the presistence length paramater
 
+    # effective width of the DNA chain
+    # 4.6nm for B-Form (taken from: Odijk, T. Phys. Rev. E 2008, 77, 060901(R))
     dna_energy_width = {'a': 0, 'b': 46., 'z': 0} # yet to use a, and z type dna
     w = dna_energy_width[dna_type.lower()]
     if w > l:
         w = np.floor(l)
-        # print '~~~ %.2f > %.2f ~~~~~~~~~~~~~~~~~~~~~~~~' % (w, l)
-        print ('>>> setting chain width (w) to %d (chain width < distance' %w,
-               ' btwn beads)')
+        print '>>> chain width, w, set to %d Angstroms (so w is < dist btwn beads)' %w
 
     dna_bead_radius = 4.5
 
@@ -744,10 +718,7 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
     wca0 = np.zeros((cg_dna.natoms(),cg_dna.natoms()))
     Ub0 = energyBend(lpl, u, l)
 
-    if ARGS.f_collide:
-        (Uwca0, wca0) = f_energy_wca(w, d_coor, wca0, 0)
-    else:
-        (Uwca0, wca0) = p_energy_wca(w, d_coor, wca0, 0)
+    (Uwca0, wca0) = f_energy_wca(w, d_coor, wca0, 0)
 
     U_T0 = Ub0 + Uwca0
     # print '(Ub0, Uwca0, Ub0/U_T0, Uwca0/U_T0) = ', (Ub0, Uwca0, Ub0/U_T0, 
@@ -803,11 +774,7 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
         Ub1 = energyBend(lpl, u, l)
 
         # ~~~~ DNA interaction energy  ~~~~~~#
-        if ARGS.f_collide:
-            (Uwca1, wca1) = f_energy_wca(w, d_coor, wca0, trial_bead)
-        else:
-            (Uwca1, wca1) = p_energy_wca(w, d_coor, wca0, trial_bead)
-            print "python wca calculator deprecated"
+        (Uwca1, wca1) = f_energy_wca(w, d_coor, wca0, trial_bead)
 
         U_T1 =  Ub1 + Uwca1
         dU = U_T1 - U_T0
@@ -883,9 +850,11 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
             wca0 = np.copy(wca1)               # update DNA WCA energy        
             U_T0 = U_T1                        # update total energy
 
-            #print output regarding trial
-            print "trial_bead(%3d) = %2d\t failed attempts = %2d" % (n_accept, 
-                                                        trial_bead, fail_tally)
+            if ARGS.debug:
+                #print output regarding trial
+                print "trial_bead(%3d) = %2d\t failed attempts = %2d" % (n_accept, 
+                                                            trial_bead, fail_tally)
+
             fail_tally = 0                     # reset fail_tally
 
             # write out the accepted configuration for go-back use
@@ -967,10 +936,12 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
 
     if ARGS.goback > 0:
         np.savetxt(timestr+'n_from_0.txt', steps_from_0, fmt='%d')
-        
-    print "accepted %d moves" % n_accept
-    print "rejected %d moves" % n_reject
 
+    if ARGS.debug:
+        print "accepted %d moves" % n_accept
+        print "rejected %d moves" % n_reject
+
+    print "accepted %0.2f percent of trials" % (100.0 * n_accept/(n_reject + n_accept))
     # print n_reload
     # print steps_from_0
 
@@ -1068,30 +1039,22 @@ def parse():
                 "the bending); default = 1") )
     parser.add_argument("-bp", "--bp_per_bead", default=1, type=int,
         help = "Number of bp for each coarse-grained bead; default = 1")
-    parser.add_argument("-t", "--temp", default=300, type=float,
+    parser.add_argument("-t", "--temperature", default=300, type=float,
         help = "Temperature for calculating the coulomb energy; default = 278")
     parser.add_argument("-fl", "--flex", default=False, action="store_true",
         help = ("Generate output file with the flexible resids formatted into "
                 "2 columns.  The first row contains the segnames for the 2 "
                 "DNA strands; default = False"))
 
-    parser.add_argument("--size", default='med', type=str,
-                        help="selection for new_c11h5.pdb flexible residues")
-    parser.add_argument("--regions", default='1-5', type=str,
-                        help="selection for new_c11h5.pdb flexible regions")
-
     parser.add_argument("-rp", "--rm_pkl", default=False, action="store_true",
                         help="remove the pkl file containing cg parameters")
+
+    parser.add_argument("-d", "--debug", default=False, action="store_true",
+                        help="display the acceptance rate and debug info")
 
     parser.add_argument("-kcg", "--keep_cg_files", default=False, 
                         action="store_true",
                         help="keep the coarse-grained output files")
-
-    parser.add_argument("-f", dest="f_collide", action='store_true',
-        help="use fortran module for calculating collisions; the default")
-    parser.add_argument("-py", dest="f_collide", action='store_false',
-        help="use python module for calculating collisions")
-    parser.set_defaults(f_collide=True)
 
     parser.add_argument("-u", dest="keep_unique", action="store_true",
         help="only store coordinates of unique structures; the default")
@@ -1189,11 +1152,6 @@ def main():
     #w = 46        # effective measure of dsDNA chain width in A (w = 46A)
     #DOI 10.1021/ma201277e used w=46, lp=530
 
-    if ARGS.f_collide:
-        print 'using fortran collision calculation'
-    else:
-        print 'using python collision calculation'
-
     if ARGS.keep_unique:
         print 'only keeping unique structures'
     else:
@@ -1229,82 +1187,22 @@ def main():
                                'Q1', 'R1', 'S1', 'T1'])
             pro_groups.append(['M0', 'N0', 'O0', 'P0',
                                'Q0', 'R0', 'S0', 'T0'])
+            # need a thata_max for each flexible region
             ARGS.theta_max = [10, 10, 10, 10, 10]
-
-        elif 'new_c11h5.pdb' in ARGS.pdb:
-            '''The C11 nucleosome tetramer with the gH5 linker'''
-            dna_segnames = ['DNA1', 'DNA2']
-            dna_resids.append([1, 693])
-            dna_resids.append([693, 1])
-            # continuous flexible residues on the first DNA strand
-            #s flex_resids = [range(1, 31), range(167, 198), range(334, 365),
-            #s     range(501, 532), range(667, 694)]
-            small_range = [range(1, 10), range(177, 180), range(344, 352),
-                 range(513, 517), range(680, 694)]
-            inter_range = [range(1, 20), range(172, 189), range(339, 357),
-                 range(507, 524), range(674, 694)]
-            large_range = [range(1, 31), range(167, 198), range(334, 365),
-                 range(501, 532), range(667, 694)]
-            xlarge_range = [range(1, 36), range(162, 203), range(329, 370),
-                 range(496, 537), range(662, 699)]
-
-            if ARGS.size == 'large':
-                flex_resids = large_range
-            elif ARGS.size == 'med':
-                flex_resids = inter_range
-            elif ARGS.size == 'small':
-                flex_resids = small_range
-            elif ARGS.size == 'x-lrg':
-                flex_resids = xlarge_range
-            else:
-                print 'unknown selection for size: ', size
-                
-            if ARGS.regions == '1-5':         # 1-5 option
-                pass                          # flex_resids = flex_resids
-            elif ARGS.regions == '234':       # 2-4 option
-                flex_resids[0] = flex_resids[4] = []
-            elif ARGS.regions == '2_4':       # 2, 4 option
-                flex_resids[0] = flex_resids[4] = flex_resids[2] = []
-            elif ARGS.regions == '23_':       # 2-3 option
-                flex_resids[0] = flex_resids[4] = flex_resids[3] = []
-            elif ARGS.regions == '2__':       # 2 option
-                flex_resids[0] = flex_resids[4] = flex_resids[3] = flex_resids[2] = []
-            elif ARGS.regions == '_3_':       # 3 option
-                flex_resids[0] = flex_resids[4] = flex_resids[3] = flex_resids[1] = []
-            else:
-                print 'unknown selection for flex: ', ARGS.regions
-                
-            # manually selecting flex-resids
-            #s flex_resids = [range(18,33), range(182,199), [], range(496,508), range(668,677)]
-            flex_resids = [[], [], [], [], range(668,677)]
-            
-
-            print ('using regions ' + ARGS.regions + ' with a ' + ARGS.size + 
-                   ' size -> flex_resids = \n', flex_resids)
-
-            pro_groups.append(['A0', 'B0', 'C0', 'D0',
-                               'E0', 'F0', 'G0', 'H0', 'H5N1'])
-            pro_groups.append(['A1', 'B1', 'C1', 'D1',
-                               'E1', 'F1', 'G1', 'H1', 'H5N2'])
-            pro_groups.append(['M1', 'N1', 'O1', 'P1',
-                               'Q1', 'R1', 'S1', 'T1', 'H5N3'])
-            pro_groups.append(['M0', 'N0', 'O0', 'P0',
-                               'Q0', 'R0', 'S0', 'T0', 'H5N4'])
-            ARGS.theta_max = [2, 5, 2, 5, 2]
 
         elif 'new_dsDNA60.pdb' in ARGS.pdb:
             # linker dna file
             dna_segnames = ['DNA1', 'DNA2']
             dna_resids.append([1, 60]) # DNA base pairing
             dna_resids.append([120, 61]) # DNA base pairing
-            flex_resids = [range(16, 45)]
-            ARGS.theta_max = [25, 25, 25, 25, 25]
+            flex_resids = [range(10, 26), range(35, 51)]
+            ARGS.theta_max = [25, 5]
         elif 'new_dsDNA.pdb' in ARGS.pdb:
             # linker dna file
             dna_segnames = ['DNA1', 'DNA2']
             dna_resids.append([1, 30]) # DNA base pairing
             dna_resids.append([30, 1]) # DNA base pairing
-            flex_resids = [range(1, 31)]
+            flex_resids = [range(5, 26)]
         else:
             print "\n~~~ ERROR, unknow pdb file input ~~~\n"
 
@@ -1317,13 +1215,14 @@ def main():
                               dna_segnames)
         
         toc = time.time() - tic 
-        print 'Total coarse-grain time = %f seconds' % toc        
+        print 'Total coarse-grain time = %0.3f seconds' % toc        
         
     tic = time.time()     
     dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
            beadgroups, move_masks, all_beads, dna_bead_masks, aa_pgroup_masks,
            cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask)
-    toc = time.time() - tic; print 'run time =', toc, 'seconds'
+    toc = time.time() - tic
+    print 'run time = %0.3f seconds' % toc
 
     if None == ARGS.Llp and ARGS.flex:
         write_flex_resids(all_beads, trialbeads, ARGS)
