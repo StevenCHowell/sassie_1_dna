@@ -25,22 +25,24 @@ def dna_mc_save_info(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp,
     this function perform nsteps Monte-Carlo moves on the cg_dna
     '''
 
-    timestr = time.strftime("%y%m%d_%H%M%S_") # prefix for output files
-    all_dcd_name = timestr + ARGS.pdb[:-4] + '.dcd'
+    timestr = time.strftime("_%y%m%d_%H%M%S") # prefix for output files
+    all_dcd_name = ARGS.pdb[:-4] + timestr + '.dcd'
     aa_all_dcd_out = aa_all.open_dcd_write(all_dcd_name)
     
     if False:
         aa_all.send_coordinates_to_vmd(2222,0)
     
     # create the coarse-grained DNA and protein dcd and pdb files
-    cg_dna_dcd_name = timestr + 'cg_dna.dcd'
-    cg_pro_dcd_name = timestr + 'cg_pro.dcd'    
+    cg_dna_dcd_name = 'cg_dna' + timestr + '.dcd'
+    cg_pro_dcd_name = 'cg_pro' + timestr + '.dcd'    
     cg_dna_dcd_out = cg_dna.open_dcd_write(cg_dna_dcd_name)
     cg_pro_dcd_out = cg_pro.open_dcd_write(cg_pro_dcd_name)    
     cg_dna.write_dcd_step(cg_dna_dcd_out, 0, 1)
     cg_pro.write_dcd_step(cg_pro_dcd_out, 0, 1)    
-    cg_dna.write_pdb(timestr + 'cg_dna.pdb', 0, 'w')
-    cg_pro.write_pdb(timestr + 'cg_pro.pdb', 0, 'w')    
+    cg_dna_pdb_name = 'cg_dna' + timestr + '.pdb'
+    cg_pro_pdb_name = 'cg_pro' + timestr + '.pdb'    
+    cg_dna.write_pdb(cg_dna_pdb_name, 0, 'w')
+    cg_pro.write_pdb(cg_pro_pdb_name, 0, 'w')    
     
     # create a dummy sasmol object for the 3 orientation vectors for each bead
     # will write these out to dcd files to store the coordinates along the way
@@ -54,9 +56,9 @@ def dna_mc_save_info(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp,
     vecX_mol.setCoor(np.array([vecXYZ[0]])) # the np.array recast these so they 
     vecY_mol.setCoor(np.array([vecXYZ[1]])) # do not update with vecXYZ 
     vecZ_mol.setCoor(np.array([vecXYZ[2]]))
-    vecX_dcd_name = timestr + 'vecX.dcd'
-    vecY_dcd_name = timestr + 'vecY.dcd'
-    vecZ_dcd_name = timestr + 'vecZ.dcd'
+    vecX_dcd_name = 'vecX' + timestr + '.dcd'
+    vecY_dcd_name = 'vecY' + timestr + '.dcd'
+    vecZ_dcd_name = 'vecZ' + timestr + '.dcd'
     vecX_dcd_out = vecX_mol.open_dcd_write(vecX_dcd_name)
     vecY_dcd_out = vecY_mol.open_dcd_write(vecY_dcd_name)    
     vecZ_dcd_out = vecZ_mol.open_dcd_write(vecZ_dcd_name)        
@@ -205,27 +207,30 @@ def dna_mc_save_info(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp,
                     if 1 == f_overlap2(p_coor_rot, p_coor_fix, pro_pro_test):
                         print 'Protein-Protein'
                         #print 'collision, set p=0'
-                        no_collision = False
+                        collisionless = False
                     
                     # print 'currently ignoring DNA-protein overlap'
                     # check for DNA-protein overlap
                     elif 1 == f_overlap2(p_coor_rot, d_coor_fix, dna_pro_test):
                         print 'Potein-DNA (rot-fix)'
                         #print 'collision, set p=0'
-                        no_collision = False
+                        collisionless = False
                         print 'ignoring this for now'
     
                     elif 1 == f_overlap2(p_coor_fix, d_coor_rot, dna_pro_test):
                         print 'Potein-DNA (fix-rot)'
                         #print 'collision, set p=0'
-                        no_collision = False
-    
-                    if no_collision == 1:
+                        collisionless = False
+                    else: # passed all collision tests
+                        collisionless = True
+                        
+                    if not collisionless:
                         print 'failed because of collision'
-                else:
-                    no_collision = True #no protein to collide with
+                        
+                else: # there are no proteins rotated -> no possible collisions
+                    collisionless = True 
 
-        if rg_pass and dna_pass and no_collision:
+        if rg_pass and dna_pass and collisionless:
             rg_old = rg_new
             n_from_reload += 1
             steps_from_0[n_accept] = n_from_reload + n_reload[-1]
@@ -338,15 +343,18 @@ def dna_mc_save_info(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp,
 
     aa_all.close_dcd_write(aa_all_dcd_out)
     
-    cg_dna.close_dcd_write(cg_dna_dcd_out) #uncomment if wanting to keep
-    # os.remove(timestr + 'cg_dna.pdb') # remove/comment to keep the cg dna coor
-    # os.remove(cg_dna_dcd_name) # remove/comment to keep the cg dna coor
-    # cg_pro.close_dcd_write(cg_pro_dcd_out) #uncomment if wanting to keep
-    os.remove(timestr + 'cg_pro.pdb') # remove/comment to keep the cg pro coor   
-    os.remove(cg_pro_dcd_name) # remove/comment to keep the cg pro coor   
     os.remove(vecX_dcd_name) 
     os.remove(vecY_dcd_name) 
     os.remove(vecZ_dcd_name) 
+
+    if ARGS.keep_cg_files:
+        cg_dna.close_dcd_write(cg_dna_dcd_out)
+        cg_pro.close_dcd_write(cg_pro_dcd_out)
+    else:
+        os.remove(cg_dna_pdb_name)
+        os.remove(cg_pro_pdb_name)
+        os.remove(cg_dna_dcd_name)
+        os.remove(cg_pro_dcd_name)
 
     if ARGS.goback > 0:
         np.savetxt(timestr+'n_from_0.txt', steps_from_0, fmt='%d')
@@ -371,7 +379,7 @@ def main():
     dna_resids =  []
     pro_groups =  []
 
-    if  ARGS.pdb ==  'new_c11_tetramer.pdb':
+    if  ARGS.pdb ==  'new_c11_tetramer.pdb' in ARGS.pdb:
         '''The C11 nucleosome tetramer with all the protein tails'''
         dna_segnames = ['DNA1', 'DNA2']
         dna_resids.append([1, 693])
@@ -390,7 +398,7 @@ def main():
                            'Q0', 'R0', 'S0', 'T0'])
         ARGS.theta_max = [10, 10, 10, 10, 10]
 
-    elif  ARGS.pdb ==  'new_c11h5.pdb':
+    elif 'new_c11h5.pdb' in ARGS.pdb:
         '''The C11 nucleosome tetramer with the gH5 linker'''
         dna_segnames = ['DNA1', 'DNA2']
         dna_resids.append([1, 693])
@@ -451,14 +459,14 @@ def main():
                            'Q0', 'R0', 'S0', 'T0', 'H5N4'])
         ARGS.theta_max = [2, 5, 2, 5, 2]
 
-    elif ARGS.pdb == 'new_dsDNA60.pdb':
+    elif 'new_dsDNA60.pdb' in ARGS.pdb:
         # linker dna file
         dna_segnames = ['DNA1', 'DNA2']
         dna_resids.append([1, 60]) # DNA base pairing
         dna_resids.append([120, 61]) # DNA base pairing
         flex_resids = [range(16, 45)]
         ARGS.theta_max = [25, 25, 25, 25, 25]
-    elif ARGS.pdb == 'new_dsDNA.pdb':
+    elif 'new_dsDNA.pdb' in ARGS.pdb:
         # linker dna file
         dna_segnames = ['DNA1', 'DNA2']
         dna_resids.append([1, 30]) # DNA base pairing
@@ -471,9 +479,9 @@ def main():
 
     (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, trialbeads, beadgroups, 
     move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, cg_pgroup_masks, 
-    all_proteins, aa_all, aa_pro_mask,
-    aa_dna_mask, bp_per_bead) = dna_move.get_cg_parameters(ARGS, flex_resids, 
-                                    pro_groups, dna_resids, dna_segnames)
+    all_proteins, aa_all, aa_pro_mask, aa_dna_mask, bp_per_bead
+    ) = dna_move.get_cg_parameters( 
+        ARGS, flex_resids, pro_groups, dna_resids, dna_segnames)
     
     toc = time.time() - tic 
     print 'Total coarse-grain time = %f seconds' % toc        
@@ -497,13 +505,13 @@ def make_plots(rg, Uel_kCpM, Uel, Uwca, Ub):
 
     n_steps = len(rg)
     steps = np.linspace(1,n_steps,n_steps)
-    
+        
     leg_Uel = r'U_el: %0.1f +/- %0.1f' % (np.mean(Uel), np.std(Uel))
     plt.plot(steps, Uel, 's', label=leg_Uel, ms=10)
 
     leg_Uwca = r'U_WCA: %0.1f +/- %0.1f' % (np.mean(Uwca), np.std(Uwca))
     plt.plot(steps, Uwca, 'o', label=leg_Uwca, ms=10)
-
+        
     leg_Ub = r'U_bend: %0.1f +/- %0.1f' % (np.mean(Ub), np.std(Ub))
     plt.plot(steps, Ub, '>', label=leg_Ub, ms=10)
 
@@ -519,7 +527,7 @@ def make_plots(rg, Uel_kCpM, Uel, Uwca, Ub):
     plt.show()
 
     print 'pause'
-
+    
 def coulomb_energy(r, switchd, nbcutoff):
     '''
     given a distance, calculate the coulomb energy
@@ -582,9 +590,10 @@ if __name__ == "__main__":
     #     logging.basicConfig()
 
     ARGS = dna_move.parse()  # this makes ARGS global
-
+    if ARGS.pdb is not None:
+        ARGS.pdb = os.getcwd() + '/' + ARGS.pdb
     # main()
     
     determine_cutoff()
-    
+
     print '\nFinished %d successful DNA moves! \n\m/ >.< \m/' % ARGS.nsteps

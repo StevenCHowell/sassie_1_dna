@@ -12,7 +12,6 @@
 
 import sassie.sasmol.sasmol as sasmol, numpy as np
 import dna.cgDNA_move as dna_move
-import dna.energy.collision as collision
 import warnings, time, os
 
 def driven_dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
@@ -202,27 +201,29 @@ def driven_dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
                     if 1 == f_overlap2(p_coor_rot, p_coor_fix, pro_pro_test):
                         print 'Protein-Protein'
                         #print 'collision, set p=0'
-                        no_collision = False
+                        collisionless = False
                     
                     # print 'currently ignoring DNA-protein overlap'
                     # check for DNA-protein overlap
                     elif 1 == f_overlap2(p_coor_rot, d_coor_fix, dna_pro_test):
                         print 'Potein-DNA (rot-fix)'
                         #print 'collision, set p=0'
-                        no_collision = False
+                        collisionless = False
                         print 'ignoring this for now'
     
                     elif 1 == f_overlap2(p_coor_fix, d_coor_rot, dna_pro_test):
                         print 'Potein-DNA (fix-rot)'
                         #print 'collision, set p=0'
-                        no_collision = False
-    
-                    if no_collision == 1:
+                        collisionless = False
+                    else:
+                        collisionless = True
+                        
+                    if not collisionless:
                         print 'failed because of collision'
                 else:
-                    no_collision = True #no protein to collide with
+                    collisionless = True #no protein to collide with
 
-        if rg_pass and dna_pass and no_collision:
+        if rg_pass and dna_pass and collisionless:
             rg_old = rg_new
             n_from_reload += 1
             steps_from_0[n_accept] = n_from_reload + n_reload[-1]
@@ -445,10 +446,11 @@ def main():
 
     (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, trialbeads, beadgroups, 
     move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, cg_pgroup_masks, 
-    all_proteins, aa_all, aa_pro_mask,
-    aa_dna_mask) = dna_move.get_cg_parameters(ARGS, flex_resids, 
-                                    pro_groups, dna_resids, dna_segnames)
+    all_proteins, aa_all, aa_pro_mask, aa_dna_mask, bp_per_bead
+    ) = dna_move.get_cg_parameters(
+        ARGS, flex_resids, pro_groups, dna_resids, dna_segnames)
     
+                                    
     toc = time.time() - tic 
     print 'Total coarse-grain time = %f seconds' % toc        
         
