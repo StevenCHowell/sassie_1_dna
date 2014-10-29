@@ -12,7 +12,8 @@
 
 import sassie.sasmol.sasmol as sasmol, numpy as np
 import dna.cgDNA_move as dna_move
-import dna.collision, warnings, time, os
+import dna.energy.collision as collision
+import warnings, time, os
 
 def driven_dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
            beadgroups, group_masks, all_beads, dna_bead_masks, aa_pgroup_masks,

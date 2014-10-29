@@ -674,22 +674,24 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
     this function perform nsteps Monte-Carlo moves on the cg_dna
     '''
 
-    timestr = time.strftime("%y%m%d_%H%M%S_") # prefix for output files
-    all_dcd_name = timestr + ARGS.pdb[:-4] + '.dcd'
+    timestr = time.strftime("_%y%m%d_%H%M%S") # prefix for output files
+    all_dcd_name = ARGS.pdb[:-4] + timestr + '.dcd'
     aa_all_dcd_out = aa_all.open_dcd_write(all_dcd_name)
     
     if False:
         aa_all.send_coordinates_to_vmd(2222,0)
     
     # create the coarse-grained DNA and protein dcd and pdb files
-    cg_dna_dcd_name = timestr + 'cg_dna.dcd'
-    cg_pro_dcd_name = timestr + 'cg_pro.dcd'    
+    cg_dna_dcd_name = 'cg_dna' + timestr + '.dcd'
+    cg_pro_dcd_name = 'cg_pro' + timestr + '.dcd'    
     cg_dna_dcd_out = cg_dna.open_dcd_write(cg_dna_dcd_name)
     cg_pro_dcd_out = cg_pro.open_dcd_write(cg_pro_dcd_name)    
     cg_dna.write_dcd_step(cg_dna_dcd_out, 0, 1)
-    cg_pro.write_dcd_step(cg_pro_dcd_out, 0, 1)    
-    cg_dna.write_pdb(timestr + 'cg_dna.pdb', 0, 'w')
-    cg_pro.write_pdb(timestr + 'cg_pro.pdb', 0, 'w')    
+    cg_pro.write_dcd_step(cg_pro_dcd_out, 0, 1)
+    cg_dna_pdb_name = 'cg_dna' + timestr + '.pdb'
+    cg_pro_pdb_name = 'cg_pro' + timestr + '.pdb'    
+    cg_dna.write_pdb(cg_dna_pdb_name, 0, 'w')
+    cg_pro.write_pdb(cg_pro_pdb_name, 0, 'w')    
     
     # create a dummy sasmol object for the 3 orientation vectors for each bead
     # will write these out to dcd files to store the coordinates along the way
@@ -703,9 +705,9 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
     vecX_mol.setCoor(np.array([vecXYZ[0]])) # the np.array recast these so they 
     vecY_mol.setCoor(np.array([vecXYZ[1]])) # do not update with vecXYZ 
     vecZ_mol.setCoor(np.array([vecXYZ[2]]))
-    vecX_dcd_name = timestr + 'vecX.dcd'
-    vecY_dcd_name = timestr + 'vecY.dcd'
-    vecZ_dcd_name = timestr + 'vecZ.dcd'
+    vecX_dcd_name = 'vecX' + timestr + '.dcd'
+    vecY_dcd_name = 'vecY' + timestr + '.dcd'
+    vecZ_dcd_name = 'vecZ' + timestr + '.dcd'
     vecX_dcd_out = vecX_mol.open_dcd_write(vecX_dcd_name)
     vecY_dcd_out = vecY_mol.open_dcd_write(vecY_dcd_name)    
     vecZ_dcd_out = vecZ_mol.open_dcd_write(vecZ_dcd_name)        
@@ -731,7 +733,6 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
         print ('>>> setting chain width (w) to %d (chain width < distance' %w,
                ' btwn beads)')
 
-    dna_diam = {'a': 25.5, 'b': 23.7, 'z': 18.4}
     dna_bead_radius = 4.5
 
     pro_bead_radius = 1.0 # 2A min seperation of CA atoms in database
@@ -797,39 +798,39 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
         if beadgroups[trial_bead] < len(group_masks):
             p_coor[p_ind_rot] = p_coor_rot
 
-            # calculate the change in energy (dU) and the boltzman factor (p)
-            (u, l) = checkU(d_coor)
-            Ub1 = energyBend(lpl, u, l)
-    
-            # ~~~~ DNA interaction energy  ~~~~~~#
-            if ARGS.f_collide:
-                (Uwca1, wca1) = f_energy_wca(w, d_coor, wca0, trial_bead)
-            else:
-                (Uwca1, wca1) = p_energy_wca(w, d_coor, wca0, trial_bead)
-                print "python wca calculator deprecated"
-    
-            U_T1 =  Ub1 + Uwca1
-            dU = U_T1 - U_T0
-    
-            with warnings.catch_warnings():
-                warnings.filterwarnings('error') # need this for np warnings
-                try:
-                    p = np.exp(-dU)
-                # print '\n(Ub1, Uwca1) = ', (Ub1, Uwca1) 
-                # print '(Ub1/U_T1, Uwca1/U_T1) = ', (Ub1/U_T1, Uwca1/U_T1)
-                # print '(p, dU) = ', (p, dU)
-                except Warning:
-                    if dU > 99:
-                        p =  0
-                        #s print 'energy was large, setting probability to 0'
-                    elif dU < 0:
-                        p =  1
-                        #s print 'energy was negative, setting probability to 1'
-                    else:
-                        print 'Warning: ~~> unclear OverflowError <~~ dU = ', dU
-                        print 'not sure where the error originated from'
+        # calculate the change in energy (dU) and the boltzman factor (p)
+        (u, l) = checkU(d_coor)
+        Ub1 = energyBend(lpl, u, l)
 
-            test = np.random.random()
+        # ~~~~ DNA interaction energy  ~~~~~~#
+        if ARGS.f_collide:
+            (Uwca1, wca1) = f_energy_wca(w, d_coor, wca0, trial_bead)
+        else:
+            (Uwca1, wca1) = p_energy_wca(w, d_coor, wca0, trial_bead)
+            print "python wca calculator deprecated"
+
+        U_T1 =  Ub1 + Uwca1
+        dU = U_T1 - U_T0
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings('error') # need this for np warnings
+            try:
+                p = np.exp(-dU)
+            # print '\n(Ub1, Uwca1) = ', (Ub1, Uwca1) 
+            # print '(Ub1/U_T1, Uwca1/U_T1) = ', (Ub1/U_T1, Uwca1/U_T1)
+            # print '(p, dU) = ', (p, dU)
+            except Warning:
+                if dU > 99:
+                    p =  0
+                    #s print 'energy was large, setting probability to 0'
+                elif dU < 0:
+                    p =  1
+                    #s print 'energy was negative, setting probability to 1'
+                else:
+                    print 'Warning: ~~> unclear OverflowError <~~ dU = ', dU
+                    print 'not sure where the error originated from'
+
+        test = np.random.random()
         collision = 0
 
         if test >= p:
@@ -951,15 +952,18 @@ def dna_mc(ARGS, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads,
 
     aa_all.close_dcd_write(aa_all_dcd_out)
     
-    cg_dna.close_dcd_write(cg_dna_dcd_out) #uncomment if wanting to keep
-    cg_pro.close_dcd_write(cg_pro_dcd_out) #uncomment if wanting to keep
-    # os.remove(timestr + 'cg_dna.pdb')
-    # os.remove(timestr + 'cg_pro.pdb')    
-    # os.remove(cg_dna_dcd_name) # remove/comment to keep the cg dna coor
-    # os.remove(cg_pro_dcd_name) # remove/comment to keep the cg pro coor   
-    os.remove(vecX_dcd_name) # remove/comment to keep the cg pro coor   
-    os.remove(vecY_dcd_name) # remove/comment to keep the cg pro coor   
-    os.remove(vecZ_dcd_name) # remove/comment to keep the cg pro coor       
+    os.remove(vecX_dcd_name) 
+    os.remove(vecY_dcd_name) 
+    os.remove(vecZ_dcd_name) 
+
+    if ARGS.keep_cg_files:
+        cg_dna.close_dcd_write(cg_dna_dcd_out)
+        cg_pro.close_dcd_write(cg_pro_dcd_out)
+    else:
+        os.remove(cg_dna_pdb_name)
+        os.remove(cg_pro_pdb_name)
+        os.remove(cg_dna_dcd_name)
+        os.remove(cg_pro_dcd_name)
 
     if ARGS.goback > 0:
         np.savetxt(timestr+'n_from_0.txt', steps_from_0, fmt='%d')
@@ -1078,6 +1082,10 @@ def parse():
 
     parser.add_argument("-rp", "--rm_pkl", default=False, action="store_true",
                         help="remove the pkl file containing cg parameters")
+
+    parser.add_argument("-kcg", "--keep_cg_files", default=False, 
+                        action="store_true",
+                        help="keep the coarse-grained output files")
 
     parser.add_argument("-f", dest="f_collide", action='store_true',
         help="use fortran module for calculating collisions; the default")
@@ -1204,7 +1212,7 @@ def main():
         dna_resids =  []
         pro_groups =  []
 
-        if  ARGS.pdb ==  'new_c11_tetramer.pdb':
+        if  ARGS.pdb ==  'new_c11_tetramer.pdb' in ARGS.pdb:
             '''The C11 nucleosome tetramer with all the protein tails'''
             dna_segnames = ['DNA1', 'DNA2']
             dna_resids.append([1, 693])
@@ -1223,7 +1231,7 @@ def main():
                                'Q0', 'R0', 'S0', 'T0'])
             ARGS.theta_max = [10, 10, 10, 10, 10]
 
-        elif  ARGS.pdb ==  'new_c11h5.pdb':
+        elif 'new_c11h5.pdb' in ARGS.pdb:
             '''The C11 nucleosome tetramer with the gH5 linker'''
             dna_segnames = ['DNA1', 'DNA2']
             dna_resids.append([1, 693])
@@ -1284,14 +1292,14 @@ def main():
                                'Q0', 'R0', 'S0', 'T0', 'H5N4'])
             ARGS.theta_max = [2, 5, 2, 5, 2]
 
-        elif ARGS.pdb == 'new_dsDNA60.pdb':
+        elif 'new_dsDNA60.pdb' in ARGS.pdb:
             # linker dna file
             dna_segnames = ['DNA1', 'DNA2']
             dna_resids.append([1, 60]) # DNA base pairing
             dna_resids.append([120, 61]) # DNA base pairing
             flex_resids = [range(16, 45)]
             ARGS.theta_max = [25, 25, 25, 25, 25]
-        elif ARGS.pdb == 'new_dsDNA.pdb':
+        elif 'new_dsDNA.pdb' in ARGS.pdb:
             # linker dna file
             dna_segnames = ['DNA1', 'DNA2']
             dna_resids.append([1, 30]) # DNA base pairing
@@ -1409,7 +1417,7 @@ def get_cg_parameters(ARGS, flex_resids, pro_groups, dna_resids,
     if do_dna_flex:
         #~~~ Determine flexible DNA beads from user input ~~~#
         beadgroups, trialbeads = is_bead_flexible(flex_resids, cg_dna.natoms(), 
-                                    dna_resids[0], ARGS.bp_per_bead)
+                                    dna_resids[0], bp_per_bead)
 
     if do_cg_pro:
         #~~~ Protein ONLY section ~~~#
@@ -1474,6 +1482,8 @@ if __name__ == "__main__":
     #     logging.basicConfig()
 
     ARGS = parse()  # this makes ARGS global
+    if ARGS.pdb is not None:
+        ARGS.pdb = os.getcwd() + '/' + ARGS.pdb
 
     main()
     print '\nFinished %d successful DNA moves! \n\m/ >.< \m/' % ARGS.nsteps
