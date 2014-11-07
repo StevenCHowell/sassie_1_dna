@@ -247,7 +247,7 @@ def plot_dna_compare_dyhedral(n0_all_angles, nm_all_angles, m__all_angles):
 
 
 
-def plot_dna_min_dyhedral(min_angles, raw_angles):
+def plot_dna_min_dihedral(min_angles, raw_angles):
     logging.debug('testing')
     plt.ion()
     (n_thetas, n_frames, n_bps, n_angles) = min_angles.shape
@@ -261,7 +261,7 @@ def plot_dna_min_dyhedral(min_angles, raw_angles):
     matplotlib.rcParams['xtick.direction'] = 'in'
     matplotlib.rcParams['ytick.direction'] = 'in'
     
-    step = 10
+    step = 1
     frame_0 = step-1
     
     for frame in xrange(frame_0, n_frames, step):
@@ -274,8 +274,145 @@ def plot_dna_min_dyhedral(min_angles, raw_angles):
         for tm in xrange(n_thetas):
             zero_to_threesixty(min_angles[tm,frame])  #only need to do this once
             zero_to_threesixty(raw_angles[tm,frame])
-            plt.plot(min_angles[tm,frame][0:-1, angles[x]], min_angles[tm,frame][1:, angles[y]], 'gx')
             plt.plot(raw_angles[tm,frame][0:-1, angles[x]], raw_angles[tm,frame][1:, angles[y]], 'r+')
+            plt.plot(min_angles[tm,frame][0:-1, angles[x]], min_angles[tm,frame][1:, angles[y]], 'gx')
+            
+        plt.xlabel(x)
+        plt.ylabel(y + ' + 1')
+        plt_format()
+        plt.tick_params(labelbottom='off',labeltop='on')
+        
+        plt.subplot(332)
+        x = r'$\zeta$'
+        y = r'$\beta$'
+        for tm in xrange(n_thetas):
+            plt.plot(raw_angles[tm,frame][0:-1, angles[x]], raw_angles[tm,frame][1:, angles[y]], 'r+')
+            plt.plot(min_angles[tm,frame][0:-1, angles[x]], min_angles[tm,frame][1:, angles[y]], 'gx')
+        plt.xlabel(x)
+        plt.ylabel(y + ' + 1')
+        plt_format()
+        plt.tick_params(labelleft='off',labelbottom='off',labeltop='on')
+        
+        plt.subplot(333)
+        x = r'$\zeta$'
+        y = r'$\epsilon$'
+        for tm in xrange(n_thetas):
+            plt.plot(raw_angles[tm,frame][:, angles[x]], raw_angles[tm,frame][:, angles[y]], 'r+')
+            plt.plot(min_angles[tm,frame][:, angles[x]], min_angles[tm,frame][:, angles[y]], 'gx')
+        plt.xlabel(x)
+        plt.ylabel(y)
+        plt_format()
+        plt.tick_params(labelleft='off',labelbottom='off',labeltop='on',labelright='on')
+        
+        plt.subplot(334)
+        x = r'$\alpha$'
+        y = r'$\gamma$'
+        for tm in xrange(n_thetas):
+            plt.plot(raw_angles[tm,frame][:, angles[x]], raw_angles[tm,frame][:, angles[y]], 'r+')
+            plt.plot(min_angles[tm,frame][:, angles[x]], min_angles[tm,frame][:, angles[y]], 'gx')
+        plt.xlabel(x)
+        plt.ylabel(y)
+        plt_format()
+        plt.tick_params(labelbottom='off')
+                
+        plt.subplot(335)
+        x = r'$\zeta$'
+        y = r'$\chi$'
+        for tm in xrange(n_thetas):
+            plt.plot(raw_angles[tm,frame][:, angles[x]], raw_angles[tm,frame][:, angles[y]], 'r+')
+            plt.plot(min_angles[tm,frame][:, angles[x]], min_angles[tm,frame][:, angles[y]], 'gx')
+        plt.xlabel(x)
+        plt.ylabel(y)
+        plt_format()
+        plt.tick_params(labelleft='off',labelbottom='off')
+                
+        plt.subplot(336)
+        x = r'$\delta$'
+        y = r'$\chi$'
+        for tm in xrange(n_thetas):
+            plt.plot(raw_angles[tm,frame][:, angles[x]], raw_angles[tm,frame][:, angles[y]], 'r+')
+            plt.plot(min_angles[tm,frame][:, angles[x]], min_angles[tm,frame][:, angles[y]], 'gx')
+        plt.xlabel(x)
+        plt.ylabel(y)
+        plt_format()
+        plt.tick_params(labelleft='off',labelbottom='off',labelright='on')
+        
+        plt.subplot(337)
+        x = r'$\zeta$'
+        y = r'$\zeta$'
+        for tm in xrange(n_thetas):
+            plt.plot(raw_angles[tm,frame][:-1, angles[x]], raw_angles[tm,frame][1:, angles[y]], 'r+')
+            plt.plot(min_angles[tm,frame][:-1, angles[x]], min_angles[tm,frame][1:, angles[y]], 'gx')
+        plt.xlabel(x)
+        plt.ylabel(y + ' + 1')
+        plt_format()
+        
+        plt.subplot(338)
+        x = r'$\epsilon$'
+        y = r'$\epsilon$'
+        lines = []
+        labels = []
+        for tm in xrange(n_thetas):
+            plt.plot(raw_angles[tm,frame][:-1, angles[x]], raw_angles[tm,frame][1:, angles[y]], 'r+')
+            plt.plot(min_angles[tm,frame][:-1, angles[x]], min_angles[tm,frame][1:, angles[y]], 'gx')
+        plt.xlabel(x)
+        plt.ylabel(y + ' + 1')
+        plt_format()
+        plt.tick_params(labelleft='off')
+        plt.legend(['raw','min'], loc='upper left', bbox_to_anchor=[1.1475, 1.07], numpoints = 1)
+        
+        # plt.subplot(339)
+        # x = r'$\zeta$'
+        # y = r'$\delta$'
+        # lines = []
+        # labels = []
+        # for tm in xrange(n_thetas):
+            # plt.plot(all_angles[tm,frame][:, angles[x]], all_angles[tm,frame][:, angles[y]], 'gx')
+            # labels.append('run %d' % theta_max[tm])
+        # # plt.tick_params(labelleft='off',labelright='on')
+        # # plt.xlabel(x)
+        # # plt.ylabel(y)
+        # # plt_format()
+        # plt.tick_params(labelleft='off',labelbottom='off')
+        # plt.xlim([-999, 999])
+        # plt.ylim([-999, 999])
+        # plt.legend(labels)
+
+        # plt.suptitle('Starting Structure')
+        # plt.savefig('DNA-dihedrals_0steps.pdf', bbox_ingches='tight')
+
+        plt.suptitle('%d Steps: scatter plots of selected torsional angles' % ((frame+1)*10))
+        plt.savefig('DNA-dihedrals_best_%dsteps-tz.pdf' % ((frame+1)*10), bbox_inches='tight')
+        plt.savefig('DNA-dihedrals_best_%dsteps-tz.png' % ((frame+1)*10), bbox_inches='tight')        
+        plt.draw()
+        
+    plt.show()     
+    
+def plot_dna_dihedral(min_angles):
+    logging.debug('testing')
+    plt.ion()
+    (n_thetas, n_frames, n_bps, n_angles) = min_angles.shape
+
+    # assert that raw_angle parameters match the min parameters
+            
+    angles = {r'$\alpha$': 1, r'$\beta$': 2, r'$\gamma$': 3, r'$\delta$': 4, 
+                         r'$\epsilon$': 5, r'$\zeta$': 6, r'$\chi$': 7}
+    matplotlib.rcParams['xtick.direction'] = 'in'
+    matplotlib.rcParams['ytick.direction'] = 'in'
+    
+    step = 1
+    frame_0 = step-1
+    
+    for frame in xrange(frame_0, n_frames, step):
+    # for frame in xrange(n_frames):       
+        plt.figure()
+        
+        plt.subplot(331)
+        x = r'$\zeta$'
+        y = r'$\alpha$'
+        for tm in xrange(n_thetas):
+            zero_to_threesixty(min_angles[tm,frame])  #only need to do this once
+            plt.plot(min_angles[tm,frame][0:-1, angles[x]], min_angles[tm,frame][1:, angles[y]], 'gx')
             
         plt.xlabel(x)
         plt.ylabel(y + ' + 1')
@@ -287,7 +424,6 @@ def plot_dna_min_dyhedral(min_angles, raw_angles):
         y = r'$\beta$'
         for tm in xrange(n_thetas):
             plt.plot(min_angles[tm,frame][0:-1, angles[x]], min_angles[tm,frame][1:, angles[y]], 'gx')
-            plt.plot(raw_angles[tm,frame][0:-1, angles[x]], raw_angles[tm,frame][1:, angles[y]], 'r+')
         plt.xlabel(x)
         plt.ylabel(y + ' + 1')
         plt_format()
@@ -298,7 +434,6 @@ def plot_dna_min_dyhedral(min_angles, raw_angles):
         y = r'$\epsilon$'
         for tm in xrange(n_thetas):
             plt.plot(min_angles[tm,frame][:, angles[x]], min_angles[tm,frame][:, angles[y]], 'gx')
-            plt.plot(raw_angles[tm,frame][:, angles[x]], raw_angles[tm,frame][:, angles[y]], 'r+')
         plt.xlabel(x)
         plt.ylabel(y)
         plt_format()
@@ -309,7 +444,6 @@ def plot_dna_min_dyhedral(min_angles, raw_angles):
         y = r'$\gamma$'
         for tm in xrange(n_thetas):
             plt.plot(min_angles[tm,frame][:, angles[x]], min_angles[tm,frame][:, angles[y]], 'gx')
-            plt.plot(raw_angles[tm,frame][:, angles[x]], raw_angles[tm,frame][:, angles[y]], 'r+')
         plt.xlabel(x)
         plt.ylabel(y)
         plt_format()
@@ -320,7 +454,6 @@ def plot_dna_min_dyhedral(min_angles, raw_angles):
         y = r'$\chi$'
         for tm in xrange(n_thetas):
             plt.plot(min_angles[tm,frame][:, angles[x]], min_angles[tm,frame][:, angles[y]], 'gx')
-            plt.plot(raw_angles[tm,frame][:, angles[x]], raw_angles[tm,frame][:, angles[y]], 'r+')
         plt.xlabel(x)
         plt.ylabel(y)
         plt_format()
@@ -331,7 +464,6 @@ def plot_dna_min_dyhedral(min_angles, raw_angles):
         y = r'$\chi$'
         for tm in xrange(n_thetas):
             plt.plot(min_angles[tm,frame][:, angles[x]], min_angles[tm,frame][:, angles[y]], 'gx')
-            plt.plot(raw_angles[tm,frame][:, angles[x]], raw_angles[tm,frame][:, angles[y]], 'r+')
         plt.xlabel(x)
         plt.ylabel(y)
         plt_format()
@@ -342,7 +474,6 @@ def plot_dna_min_dyhedral(min_angles, raw_angles):
         y = r'$\zeta$'
         for tm in xrange(n_thetas):
             plt.plot(min_angles[tm,frame][:-1, angles[x]], min_angles[tm,frame][1:, angles[y]], 'gx')
-            plt.plot(raw_angles[tm,frame][:-1, angles[x]], raw_angles[tm,frame][1:, angles[y]], 'r+')
         plt.xlabel(x)
         plt.ylabel(y + ' + 1')
         plt_format()
@@ -354,7 +485,6 @@ def plot_dna_min_dyhedral(min_angles, raw_angles):
         labels = []
         for tm in xrange(n_thetas):
             plt.plot(min_angles[tm,frame][:-1, angles[x]], min_angles[tm,frame][1:, angles[y]], 'gx')
-            plt.plot(raw_angles[tm,frame][:-1, angles[x]], raw_angles[tm,frame][1:, angles[y]], 'r+')
         plt.xlabel(x)
         plt.ylabel(y + ' + 1')
         plt_format()
@@ -387,6 +517,7 @@ def plot_dna_min_dyhedral(min_angles, raw_angles):
         plt.draw()
         
     plt.show()     
+
 
 def plt_format():
     
@@ -429,7 +560,7 @@ def load_angles(file_name):
     return numpy.array(all_frames)
     
 def get_angles(dcd_file_name, pdb_file_name, first_last_resid, flex_file, nf=0):
-    from dna.cgDNA_move import read_flex_resids
+    from dna.ds_dna_monte_carlo import read_flex_resids
     
     txtOutput = []
     

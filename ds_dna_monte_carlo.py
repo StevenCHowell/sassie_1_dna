@@ -1221,15 +1221,15 @@ def main(variables):
             variables['theta_max'] = ([10.0, 10.0, 10.0, 10.0, 10.0], temp[1])
             variables['theta_z_max'] = ([10.0, 10.0, 10.0, 10.0, 10.0], temp[1])            
 
-        elif 'new_dsDNA60.pdb' == pdbfile:
-            # linker dna file
-            dna_segnames = ['DNA1', 'DNA2']
-            dna_resids.append([1, 60]) # DNA base pairing
-            dna_resids.append([120, 61]) # DNA base pairing
-            flex_resids = [range(10, 26), range(35, 51)]
-            temp = variables['theta_max']
-            variables['theta_max'] = ([25.0, 5.0], temp[1])
-            variables['theta_z_max'] = ([25.0, 5.0], temp[1])            
+##        elif 'new_dsDNA60.pdb' == pdbfile:
+##            # linker dna file
+##            dna_segnames = ['DNA1', 'DNA2']
+##            dna_resids.append([1, 60]) # DNA base pairing
+##            dna_resids.append([120, 61]) # DNA base pairing
+##            flex_resids = [range(10, 26), range(35, 51)]
+##            temp = variables['theta_max']
+##            variables['theta_max'] = ([25.0, 25.0], temp[1])
+##            variables['theta_z_max'] = ([25.0, 25.0], temp[1])            
         elif 'new_dsDNA.pdb' == pdbfile:
             # linker dna file
             try:
@@ -1339,10 +1339,16 @@ def get_cg_parameters(variables, flex_resids, pro_groups, dna_resids,
             print '>>>Previous run parameter, %s, conflict with present run' % 'pro_groups'
             print '>>>Re-coarse-graining the Protein'               
             
-        if variables['bp_per_bead'][0] != variables_old['bp_per_bead'][0]:
+        try:
+            if variables['bp_per_bead'][0] != variables_old['bp_per_bead'][0]:
+                do_cg_dna = True
+                print '>>>Previous run parameter, %s, conflict with present run' % 'bp_per_bead'
+                print '>>>Re-coarse-graining the DNA'       
+        except:
             do_cg_dna = True
             print '>>>Previous run parameter, %s, conflict with present run' % 'bp_per_bead'
             print '>>>Re-coarse-graining the DNA'       
+            
 
         if flex_resids != flex_resids_old:
             do_dna_flex = True
