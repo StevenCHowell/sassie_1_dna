@@ -381,9 +381,9 @@ def plot_dna_min_dihedral(min_angles, raw_angles):
         # plt.suptitle('Starting Structure')
         # plt.savefig('DNA-dihedrals_0steps.pdf', bbox_ingches='tight')
 
-        plt.suptitle('%d Steps: scatter plots of selected torsional angles' % ((frame+1)*10))
-        plt.savefig('DNA-dihedrals_best_%dsteps-tz.pdf' % ((frame+1)*10), bbox_inches='tight')
-        plt.savefig('DNA-dihedrals_best_%dsteps-tz.png' % ((frame+1)*10), bbox_inches='tight')        
+        plt.suptitle('%d Steps: scatter plots of selected torsional angles' % ((frame+1)*100))
+        plt.savefig('DNA-dihedrals_best_%dsteps-tz.pdf' % ((frame+1)*100), bbox_inches='tight')
+        plt.savefig('DNA-dihedrals_best_%dsteps-tz.png' % ((frame+1)*100), bbox_inches='tight')        
         plt.draw()
         
     plt.show()     
