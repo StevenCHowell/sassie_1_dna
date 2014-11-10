@@ -39,7 +39,7 @@ def plot_me(x_angle,y_angle,x_angle_label,y_angle_label):
 
     plt.show()
     
-def plot_dna_dyhedral_grid(all_angles):
+def plot_dna_dihedral_grid(all_angles):
 
     plt.ion()
     (n_frames, n_bps, n_angles) = all_angles.shape
@@ -138,7 +138,7 @@ def plot_dna_dyhedral_grid(all_angles):
         
     plt.show()     
 
-def plot_dna_compare_dyhedral(n0_all_angles, nm_all_angles, m__all_angles):
+def plot_dna_compare_dihedral(n0_all_angles, nm_all_angles, m__all_angles):
     angles = {'alpha': 0, 'beta': 1, 'gamma': 2, 'delta': 3, 
                          'epsilon': 4, 'zeta': 5, 'chi': 6}
     zero_to_threesixty(n0_all_angles)
@@ -245,7 +245,12 @@ def plot_dna_compare_dyhedral(n0_all_angles, nm_all_angles, m__all_angles):
     
     plt.show()        
 
+def plot3d_dihedral(min_angles, raw_angles):
+    from mayavi import mlab
 
+    logging.debug('testing')
+    (n_thetas, n_frames, n_bps, n_angles) = min_angles.shape
+    (n_thetas_r, n_frames_r, n_bps_r, n_angles_r) = raw_angles.shape    
 
 def plot_dna_min_dihedral(min_angles, raw_angles):
     logging.debug('testing')
