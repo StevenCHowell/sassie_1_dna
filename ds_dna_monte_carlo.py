@@ -30,6 +30,8 @@ import sassie.sasmol.sasmol as sasmol
 import dna.energy.collision as collision
 import random, warnings, time, os, numpy
 import sassie.simulate.monte_carlo.ds_dna_monte_carlo.special.input_filter as input_filter
+from sassie.tools.merge_utilities import merge_dcd_files
+import multiprocessing
 
 try: 
     import cPickle as pickle
@@ -734,7 +736,7 @@ def mask2ind(mask):
 def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write, 
            keep_unique, keep_cg_files, softrotation, write_flex, runname, ofile,
            cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads, beadgroups, 
-           group_masks, all_beads, dna_bead_masks, aa_pgroup_masks, 
+           move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, 
            cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask, 
            dna_type='b'):
     '''
@@ -745,7 +747,7 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
         print 'softening all rotaitons over %d beads' % softrotation
         print 'softening all rotaitons over %d beads' % softrotation
 
-    timestr = time.strftime("_%y%m%d_%H%M%S") # prefix for output files
+    # timestr = time.strftime("_%y%m%d_%H%M%S") # suffix for output files
 
     if debug and False:
         # never got this to work right
@@ -762,16 +764,16 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
     if write_flex:
         write_flex_resids(infile, all_beads, trialbeads, dna_path)
 
-    aa_dcd = dna_path + ofile[:-4] + '%03d.dcd' % i_loop
-    aa_all_dcd_out = aa_all.open_dcd_write(aa_dcd)
+    aa_ofile = dna_path + ofile[:-4] + '_%03d.dcd' % i_loop
+    aa_all_dcd_out = aa_all.open_dcd_write(aa_ofile)
     
     # create the coarse-grained DNA and protein dcd and pdb files
-    cg_dna_ofile = dna_path + 'cg_dna' + timestr + '%03d' % i_loop
-    cg_pro_ofile = dna_path + 'cg_pro' + timestr + '%03d' % i_loop
-    cg_dna.write_pdb(cg_dna_ofile + '.pdb', 0, 'w')
-    cg_pro.write_pdb(cg_pro_ofile + '.pdb', 0, 'w')    
-    cg_dna_dcd_out = cg_dna.open_dcd_write(cg_dna_ofile + '.dcd')
-    cg_pro_dcd_out = cg_pro.open_dcd_write(cg_pro_ofile + '.dcd')    
+    cg_dna_ofile = dna_path + 'cg_dna' + '_%03d.dcd' % i_loop
+    cg_pro_ofile = dna_path + 'cg_pro' + '_%03d.dcd'% i_loop
+    cg_dna.write_pdb(cg_dna_ofile[:-4] + '.pdb', 0, 'w')
+    cg_pro.write_pdb(cg_pro_ofile[:-4] + '.pdb', 0, 'w')    
+    cg_dna_dcd_out = cg_dna.open_dcd_write(cg_dna_ofile)
+    cg_pro_dcd_out = cg_pro.open_dcd_write(cg_pro_ofile)    
     
     # will write these out to dcd files to store the coordinates along the way
     vecX_mol = sasmol.SasMol(0)
@@ -784,9 +786,9 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
     vecX_mol.setCoor(numpy.array([vecXYZ[0]])) # the numpy.array recast these so they 
     vecY_mol.setCoor(numpy.array([vecXYZ[1]])) # do not update with vecXYZ 
     vecZ_mol.setCoor(numpy.array([vecXYZ[2]]))
-    vecX_dcd_name = dna_path + 'vecX' + timestr + '.dcd'
-    vecY_dcd_name = dna_path + 'vecY' + timestr + '.dcd'
-    vecZ_dcd_name = dna_path + 'vecZ' + timestr + '.dcd'
+    vecX_dcd_name = dna_path + 'vecX' + '%03d.dcd' % i_loop
+    vecY_dcd_name = dna_path + 'vecY' + '%03d.dcd' % i_loop
+    vecZ_dcd_name = dna_path + 'vecZ' + '%03d.dcd' % i_loop
     vecX_dcd_out = vecX_mol.open_dcd_write(vecX_dcd_name)
     vecY_dcd_out = vecY_mol.open_dcd_write(vecY_dcd_name)    
     vecZ_dcd_out = vecZ_mol.open_dcd_write(vecZ_dcd_name)        
@@ -855,11 +857,11 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
         thetaY = 2 * trial_theta_max   * numpy.random.random() - trial_theta_max
         thetaXYZ = [thetaX/softrotation,thetaY/softrotation,thetaZ/softrotation]
 
-        if  len(group_masks) == 0 or beadgroups[trial_bead] == len(group_masks):
+        if  len(move_masks) == 0 or beadgroups[trial_bead] == len(move_masks):
             # Only DNA will be moving, create place-holder dummy coordinates
             p_coor_rot = numpy.zeros((0, 3))
         else:
-            p_mask = group_masks[beadgroups[trial_bead]]
+            p_mask = move_masks[beadgroups[trial_bead]]
             p_ind_rot = mask2ind(p_mask)
             p_ind_fix = mask2ind(-(p_mask-1))
             p_coor_rot = p_coor[p_ind_rot]
@@ -871,7 +873,7 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
             softrotation, p_coor_rot) 
 
         # store the rotated protein coordinates
-        if beadgroups[trial_bead] < len(group_masks):
+        if beadgroups[trial_bead] < len(move_masks):
             p_coor[p_ind_rot] = p_coor_rot
 
         # calculate the change in energy (dU) and the boltzman factor (p)
@@ -957,22 +959,12 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
 
             if debug:
                 #print output regarding trial
-                print "trial_bead(%3d) = %2d\t failed attempts = %2d" % (n_accept, 
-                                                            trial_bead, fail_tally)
-
+                print "trial_bead(%3d) = %2d\t failed attempts = %2d" % (
+                    n_accept, trial_bead, fail_tally)
+            else:
+                print '.', ;
+                
             fail_tally = 0                     # reset fail_tally
-
-            # write out the accepted configuration for go-back use
-            if goback > 0:
-                # default goback is -1 so this returns FALSE without user input
-
-                cg_dna.write_dcd_step(cg_dna_dcd_out, 0, n_written)
-                cg_pro.write_dcd_step(cg_pro_dcd_out, 0, n_written)
-                # these are incremented by one because the 0th contains the 
-                # original coordinates 
-                vecX_mol.write_dcd_step(vecX_dcd_out, 0, n_written+1)
-                vecY_mol.write_dcd_step(vecY_dcd_out, 0, n_written+1)   
-                vecZ_mol.write_dcd_step(vecZ_dcd_out, 0, n_written+1)   
             
             # recover an all atom representation and save coordinates to a dcd
             # this requires re-inserting the aa-coordinates which takes added 
@@ -990,7 +982,19 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
                 # ~~Write DCD step~~
                 n_written += 1
                 aa_all.write_dcd_step(aa_all_dcd_out, 0, n_written)
-                
+    
+                # write out the accepted configuration for go-back use
+                if goback > 0:
+                    # default goback is -1 so this returns FALSE without user input
+    
+                    cg_dna.write_dcd_step(cg_dna_dcd_out, 0, n_written)
+                    cg_pro.write_dcd_step(cg_pro_dcd_out, 0, n_written)
+                    # these are incremented by one because the 0th contains the 
+                    # original coordinates 
+                    vecX_mol.write_dcd_step(vecX_dcd_out, 0, n_written+1)
+                    vecY_mol.write_dcd_step(vecY_dcd_out, 0, n_written+1)   
+                    vecZ_mol.write_dcd_step(vecZ_dcd_out, 0, n_written+1)                   
+
         else :
             if fail_tally == goback:  
                 i_goback = rewind(seed, n_accept, cg_dna_ofile,
@@ -1030,17 +1034,21 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
     os.remove(vecZ_dcd_name) 
 
     if keep_cg_files:
-        #?# is there a way to remove the first dcd frame without calling catdcd
         cg_dna.close_dcd_write(cg_dna_dcd_out)
-        cg_pro.close_dcd_write(cg_pro_dcd_out)
+        if len(move_masks) > 0:
+            cg_pro.close_dcd_write(cg_pro_dcd_out)
+        else:
+            os.remove(cg_pro_ofile[:-4] + '.pdb')
+            os.remove(cg_pro_ofile)
     else:
-        os.remove(cg_dna_ofile + '.pdb')
-        os.remove(cg_pro_ofile + '.pdb')
-        os.remove(cg_dna_ofile + '.dcd')
-        os.remove(cg_pro_ofile + '.dcd')
+        os.remove(cg_dna_ofile[:-4] + '.pdb')
+        os.remove(cg_dna_ofile)
+        os.remove(cg_pro_ofile[:-4] + '.pdb')
+        os.remove(cg_pro_ofile)
 
     if goback > 0 and debug:
-        numpy.savetxt('n_from_0' + timestr + '.txt', steps_from_0, fmt='%d')
+        goback_ofile = dna_path + 'n_from_0_%03d.txt' % i_loop
+        numpy.savetxt(goback_ofile, steps_from_0, fmt='%d')
 
     if debug:
         print "accepted %d moves" % n_accept
@@ -1050,7 +1058,7 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
     # print n_reload
     # print steps_from_0
     
-    return aa_dcd
+    return aa_ofile, cg_dna_ofile, cg_pro_ofile
 
 def rewind(seed, n_accept, cg_dna_ofile, cg_dna, cg_pro_ofile, cg_pro, 
            vecX_dcd_name, vecX_mol, vecY_mol, vecY_dcd_name, vecZ_mol,
@@ -1073,12 +1081,12 @@ def rewind(seed, n_accept, cg_dna_ofile, cg_dna, cg_pro_ofile, cg_pro,
     vecXYZ[2] = vecZ_mol.coor()[0]                
 
     if i_goback == 0:
-        cg_dna.read_pdb(cg_dna_ofile + '.pdb')
-        cg_pro.read_pdb(cg_pro_ofile + '.dcd')
+        cg_dna.read_pdb(cg_dna_ofile[:-4] + '.pdb')
+        cg_pro.read_pdb(cg_pro_ofile[:-4] + '.pdb')
         print '\n~~~ reloaded original coordinates ~~~\n'
     else:	
-        cg_dna.read_single_dcd_step(cg_dna_ofile + '.dcd', i_goback + 1)
-        cg_pro.read_single_dcd_step(cg_pro_ofile + '.dcd', i_goback + 1) 
+        cg_dna.read_single_dcd_step(cg_dna_ofile, i_goback + 1)
+        cg_pro.read_single_dcd_step(cg_pro_ofile, i_goback + 1) 
         print '\n~~~ reloaded accepted coordinates #%d ~~~\n' % i_goback
         
     return i_goback
@@ -1156,12 +1164,15 @@ def read_flex_resids(flex_file):
     return (segnames, flex_resids)
 
 def main(variables):
-    
+
+    txtOutput=multiprocessing.JoinableQueue()
+
     (ofile, infile, refpdb, path, trials, goback, runname, psffile, theta_max, 
      theta_z_max, bp_per_bead, dna_segnames, dna_resids, pro_groups, 
      flex_resids, debug, write_flex, keep_cg_files, keep_unique,
      n_dcd_write, softrotation, rm_pkl, seed, temperature) = unpack_variables(
          variables)
+    
     
     # set the DNA properties parameters:
     lp = 530.     # persistence length  (lp = 530A)
@@ -1225,8 +1236,11 @@ def main(variables):
             print_failure(message, txtOutput) #?# what do I use for txtOutput?
             return
 
-    remaining_trials = trials
     i_loop = 0
+    remaining_trials = trials
+    aa_dcdfiles = []
+    cg_dna_dcdfiles = []    
+    cg_pro_dcdfiles = []    
     while remaining_trials > 0:
 
         tic = time.time()
@@ -1248,29 +1262,79 @@ def main(variables):
             print 'loop_trials =', loop_trials
         
         tic = time.time()     
-        aa_dcd = dna_mc(loop_trials, i_loop, theta_max, theta_z_max, debug, goback, 
+        aa_ofile, cg_dna_ofile, cg_pro_ofile = dna_mc(loop_trials, i_loop,
+                                        theta_max, theta_z_max, debug, goback, 
                          n_dcd_write, keep_unique, keep_cg_files, softrotation, 
                          write_flex, runname, ofile, cg_dna, aa_dna, cg_pro, aa_pro, 
                          vecXYZ, lp, trialbeads, beadgroups, move_masks, 
                          all_beads, dna_bead_masks, aa_pgroup_masks, 
                          cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, 
                          aa_dna_mask)
+        aa_dcdfiles.append(aa_ofile)
+        cg_dna_dcdfiles.append(cg_dna_ofile)
+        cg_pro_dcdfiles.append(cg_pro_ofile)
         toc = time.time() - tic
         print 'run time = %0.3f seconds' % toc
         
         if remaining_trials > 0:
             tic = time.time()
-            infile = minimize(aa_dcd, refpdb, path, psffile, runname)
+            infile = minimize(aa_ofile, refpdb, path, psffile, runname)
             toc = time.time() - tic
             print 'minimization time = %0.3f secords' % toc
+            i_loop += 1
             
-        i_loop += 1
-
-
     # combine the output dcd's
-    print '\n\n---> do combining here <---'
-
+    combine_output(runname, refpdb, txtOutput, ofile, aa_dcdfiles, debug, 
+                   keep_cg_files, cg_dna_dcdfiles, cg_pro_dcdfiles, move_masks)
+        
     print '\nFinished %d successful DNA MC moves! \n\m/ >.< \m/' % trials
+
+def combine_output(runname, refpdb, txtOutput, ofile, aa_dcdfiles, debug, 
+                   keep_cg_files, cg_dna_dcdfiles, cg_pro_dcdfiles, move_masks):
+    '''
+    this method serves to combine the un-minimized output structures into one 
+    complete dcd file
+    '''
+    output_log_file = open(runname+'/dna_mc/combine_output.log', 'w')
+    output_path = runname + '/'
+    merge_dcd_files(ofile[:-4], refpdb, 
+                    aa_dcdfiles, output_path, output_log_file, txtOutput)
+    if keep_cg_files:
+        merge_dcd_files('cg_dna', cg_dna_dcdfiles[0][:-4] + '.pdb', 
+                    cg_dna_dcdfiles, output_path, output_log_file, txtOutput)
+        if len(move_masks) > 0:       #check that there are actually proteins
+            merge_dcd_files('cg_pro', cg_pro_dcdfiles[0][:-4] + '.pdb', 
+                    cg_pro_dcdfiles, output_path, output_log_file, txtOutput)
+    if not debug:
+        for aa_ofile in aa_dcdfiles:
+            try:
+                os.system('rm ' + aa_ofile)
+            except:
+                message = '\nfailed to remove %s\n' % aa_ofile
+                print message
+                txtOutput.put(message)
+        if keep_cg_files:
+            cg_dcdfiles = cg_dna_dcdfiles + cg_pro_dcdfiles
+            for cg_ofile in cg_dcdfiles:
+                try:
+                    os.system('rm ' + cg_ofile)
+                except:
+                    message = '\nfailed to remove %s\n' % cg_ofile
+                    print message
+                    txtOutput.put(message)
+        
+    outdir = runname + '/dna_mc/'
+    try:
+        os.system('mv ' + output_path + 'generate/* ' + outdir)
+        output_log_file.write('moved all files in %s to %s\n' % (
+            output_path+'/generate/', outdir))
+        os.system('rmdir ' + output_path + 'generate/')
+    except:
+        message = ('cannot move combined output dcd files into the project '
+                   'directory: %s' % outdir)
+        print_failure(message, txtOutput)
+
+    output_log_file.close()
 
 def minimize(aa_dcd, refpdb, path, psffile, runname):
     '''
@@ -1519,7 +1583,7 @@ if __name__ == "__main__":
     svariables['refpdb']  = ('new_dsDNA60.pdb', 'string')
     svariables['psffile'] = ('new_dsDNA60.psf', 'string')
     svariables['ofile']   = ('new_dsDNA60_mc.dcd', 'string')
-    svariables['trials']  = ('250', 'int')
+    svariables['trials']  = ('150', 'int')
     svariables['goback']  = ('50', 'int')
     
     # Molecule Specific Input
