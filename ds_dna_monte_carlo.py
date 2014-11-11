@@ -86,7 +86,7 @@ def make_cg_dna(dna_segnames, dna_resids, bp_per_bead, aa_all, frame=0):
 
     bps = numpy.abs(resid1[1]-resid1[0])+1
     nbeads = int(numpy.round(bps/float(bp_per_bead)))
-    #print 'nbeads = ', nbeads
+    #print 'nbeads =', nbeads
 
     # load the dna into its own sasmol object
     aa_dna = sasmol.SasMol(0)
@@ -94,7 +94,7 @@ def make_cg_dna(dna_segnames, dna_resids, bp_per_bead, aa_all, frame=0):
     error, aa_dna_mask = aa_all.get_subset_mask(dna_filter)
     error = aa_all.copy_molecule_using_mask(aa_dna, aa_dna_mask, frame) # select dna
     natomsD = aa_dna.natoms()
-    print 'dna atoms = ', natomsD
+    print 'dna atoms =', natomsD
 
     # populate the cg_dna sasmol object with semi-arbitrary atom properties
     cg_dna = sasmol.SasMol(0)
@@ -208,7 +208,7 @@ def make_cg_pro(aa_all, pro_groups, frame=0):
     aa_pro = sasmol.SasMol(0)
     error, aa_pro_mask = aa_all.get_subset_mask('((moltype[i] == "protein"))')
     error = aa_all.copy_molecule_using_mask(aa_pro, aa_pro_mask, frame)
-    print 'protein atoms = ', aa_pro.natoms()
+    print 'protein atoms =', aa_pro.natoms()
 
     # coarse-grain the proteins
     print "coarse-graining the protein..."
@@ -307,7 +307,7 @@ def is_bead_flexible(flex_resids, nbeads, resid1, bp_per_bead, debug=False):
             j+=1
 
     if debug:
-        print 'beadgroups = ', beadgroups[trialbeads]
+        print 'beadgroups =', beadgroups[trialbeads]
 
     return beadgroups, trialbeads
 
@@ -397,8 +397,8 @@ def align2xyz(vecX, vecY, vecZ):
     tmp_coor[1, 0:3] = vecZ
     A1 = align2z(tmp_coor)
 
-    newX = numpy.dot(vecX, A1[0:3, 0:3]) #; print 'newX = ', newX
-    #newY = numpy.dot(vecY, A1[0:3, 0:3]) ;# print 'newY = ', newY
+    newX = numpy.dot(vecX, A1[0:3, 0:3]) #; print 'newX =', newX
+    #newY = numpy.dot(vecY, A1[0:3, 0:3]) ;# print 'newY =', newY
     if newX[2] >= zero:
         message = "ERROR!!! z-component of newX is not zero and it should be"
         print_failure(message, txtOutput)
@@ -408,11 +408,11 @@ def align2xyz(vecX, vecY, vecZ):
     thetaZ_x = -numpy.arctan2(newX[1], newX[0])
     #thetaZ_y = -numpy.arctan2(newY[1], -newY[0])
 
-    A2 = rotate4x4('z', thetaZ_x)  #; print 'A2 = ', A2
+    A2 = rotate4x4('z', thetaZ_x)  #; print 'A2 =', A2
 
     A = numpy.dot(A1, A2)
 
-    newY = numpy.dot(vecY, A[0:3, 0:3]) #; print 'finalY = ', newY
+    newY = numpy.dot(vecY, A[0:3, 0:3]) #; print 'finalY =', newY
     if newY[0]+newY[2] > 1 + zero:
         message = ("ERROR!!! newY is not aligned to the "
                                        "y-axis and it should be")
@@ -438,7 +438,7 @@ def rotate4x4(axis, theta):
     else:
         assert True, "ERROR!!! did not recognize rotation axis"
 
-    # print 'R = ', R
+    # print 'R =', R
 
     return R
 
@@ -446,7 +446,7 @@ def move2origin(coor4):
     T    = numpy.eye(4, dtype=numpy.float)
     Ti   = numpy.copy(T)
     #s print 'coor passed to T, Ti:\n', coor4
-    #s print 'size = ', coor4.shape
+    #s print 'size =', coor4.shape
     if not coor4.shape < (1, 4):
         T[3, 0:3] = -coor4[0, 0:3]
         Ti[3, 0:3] = coor4[0, 0:3]
@@ -512,7 +512,7 @@ def beadRotate(coor3, vecXYZ, thetas, n_soft, p_coor3):
     X = numpy.copy(coor4)
     Y = numpy.copy(coor4)
     Z = numpy.copy(coor4)
-    coor4[:, 0:3] = coor3     #; print 'coor4 = ', coor4
+    coor4[:, 0:3] = coor3     #; print 'coor4 =', coor4
     X[:, 0:3] = numpy.copy(vecXYZ[0])  #;print 'X = \n', X
     Y[:, 0:3] = numpy.copy(vecXYZ[1])
     Z[:, 0:3] = numpy.copy(vecXYZ[2])
@@ -640,8 +640,8 @@ def checkU(coor):
     #s         print 'ERROR: the beads are not uniformly spaced'
     #s         print 'u = \n', u
     #s         print test
-    #s         # print 'difference = ', u[:, 2] - l
-    #s         print 'distance = ', lu
+    #s         # print 'difference =', u[:, 2] - l
+    #s         print 'distance =', lu
 
     return (u, l)
 
@@ -745,24 +745,21 @@ def dna_mc(trials, theta_max, theta_z_max, debug, goback, n_dcd_write,
     if(direxist==0):
         os.system('mkdir -p ' + dna_path)
         
-    print 'runname = ', runname
+    print 'runname =', runname
 
     if write_flex:
         write_flex_resids(variables, all_beads, trialbeads, dna_path)
 
-    aa_all_dcd_out = aa_all.open_dcd_write(dna_path + ofile)
+    aa_dcd = dna_path + ofile
+    aa_all_dcd_out = aa_all.open_dcd_write(aa_dcd)
     
     # create the coarse-grained DNA and protein dcd and pdb files
-    cg_dna_dcd_name = dna_path + 'cg_dna' + timestr + '.dcd'
-    cg_pro_dcd_name = dna_path + 'cg_pro' + timestr + '.dcd'    
-    cg_dna_dcd_out = cg_dna.open_dcd_write(cg_dna_dcd_name)
-    cg_pro_dcd_out = cg_pro.open_dcd_write(cg_pro_dcd_name)    
-    cg_dna.write_dcd_step(cg_dna_dcd_out, 0, 1)
-    cg_pro.write_dcd_step(cg_pro_dcd_out, 0, 1)
-    cg_dna_pdb_name = dna_path + 'cg_dna' + timestr + '.pdb'
-    cg_pro_pdb_name = dna_path + 'cg_pro' + timestr + '.pdb'    
-    cg_dna.write_pdb(cg_dna_pdb_name, 0, 'w')
-    cg_pro.write_pdb(cg_pro_pdb_name, 0, 'w')    
+    cg_dna_ofile = dna_path + 'cg_dna' + timestr
+    cg_pro_ofile = dna_path + 'cg_pro' + timestr
+    cg_dna.write_pdb(cg_dna_ofile + '.pdb', 0, 'w')
+    cg_pro.write_pdb(cg_pro_ofile + '.pdb', 0, 'w')    
+    cg_dna_dcd_out = cg_dna.open_dcd_write(cg_dna_ofile + '.dcd')
+    cg_pro_dcd_out = cg_pro.open_dcd_write(cg_pro_ofile + '.dcd')    
     
     # will write these out to dcd files to store the coordinates along the way
     vecX_mol = sasmol.SasMol(0)
@@ -818,7 +815,7 @@ def dna_mc(trials, theta_max, theta_z_max, debug, goback, n_dcd_write,
     (Uwca0, wca0) = f_energy_wca(w, d_coor, wca0, 0)
 
     U_T0 = Ub0 + Uwca0
-    # print '(Ub0, Uwca0, Ub0/U_T0, Uwca0/U_T0) = ', (Ub0, Uwca0, Ub0/U_T0, 
+    # print '(Ub0, Uwca0, Ub0/U_T0, Uwca0/U_T0) =', (Ub0, Uwca0, Ub0/U_T0, 
     #                                                 Uwca0/U_T0)
     n_accept   = 0 # total times configuration was accepted
     n_reject   = 0 # total times configuration was rejected
@@ -879,9 +876,9 @@ def dna_mc(trials, theta_max, theta_z_max, debug, goback, n_dcd_write,
             warnings.filterwarnings('error') # need this for np warnings
             try:
                 p = numpy.exp(-dU)
-            # print '\n(Ub1, Uwca1) = ', (Ub1, Uwca1) 
-            # print '(Ub1/U_T1, Uwca1/U_T1) = ', (Ub1/U_T1, Uwca1/U_T1)
-            # print '(p, dU) = ', (p, dU)
+            # print '\n(Ub1, Uwca1) =', (Ub1, Uwca1) 
+            # print '(Ub1/U_T1, Uwca1/U_T1) =', (Ub1/U_T1, Uwca1/U_T1)
+            # print '(p, dU) =', (p, dU)
             except Warning:
                 if dU > 99:
                     p =  0
@@ -890,7 +887,7 @@ def dna_mc(trials, theta_max, theta_z_max, debug, goback, n_dcd_write,
                     p =  1
                     #s print 'energy was negative, setting probability to 1'
                 else:
-                    print 'Warning: ~~> unclear OverflowError <~~ dU = ', dU
+                    print 'Warning: ~~> unclear OverflowError <~~ dU =', dU
                     print 'not sure where the error originated from'
 
         test = numpy.random.random()
@@ -957,10 +954,10 @@ def dna_mc(trials, theta_max, theta_z_max, debug, goback, n_dcd_write,
             if goback > 0:
                 # default goback is -1 so this returns FALSE without user input
 
-                # these are incremented by one because the original coordinates 
-                # are saved (that is not the case for aa_all)
-                cg_dna.write_dcd_step(cg_dna_dcd_out, 0, n_written+1)
-                cg_pro.write_dcd_step(cg_pro_dcd_out, 0, n_written+1)                
+                cg_dna.write_dcd_step(cg_dna_dcd_out, 0, n_written)
+                cg_pro.write_dcd_step(cg_pro_dcd_out, 0, n_written)
+                # these are incremented by one because the 0th contains the 
+                # original coordinates 
                 vecX_mol.write_dcd_step(vecX_dcd_out, 0, n_written+1)
                 vecY_mol.write_dcd_step(vecY_dcd_out, 0, n_written+1)   
                 vecZ_mol.write_dcd_step(vecZ_dcd_out, 0, n_written+1)   
@@ -984,8 +981,8 @@ def dna_mc(trials, theta_max, theta_z_max, debug, goback, n_dcd_write,
                 
         else :
             if fail_tally == goback:  
-                i_goback = rewind(variables, n_accept, cg_dna_dcd_name,
-                            cg_dna, cg_pro_dcd_name, cg_pro, vecX_dcd_name, 
+                i_goback = rewind(variables, n_accept, cg_dna_ofile,
+                            cg_dna, cg_pro_ofile, cg_pro, vecX_dcd_name, 
                             vecX_mol, vecY_mol, vecY_dcd_name, vecZ_mol, 
                             vecZ_dcd_name, vecXYZ)
 
@@ -1025,10 +1022,10 @@ def dna_mc(trials, theta_max, theta_z_max, debug, goback, n_dcd_write,
         cg_dna.close_dcd_write(cg_dna_dcd_out)
         cg_pro.close_dcd_write(cg_pro_dcd_out)
     else:
-        os.remove(cg_dna_pdb_name)
-        os.remove(cg_pro_pdb_name)
-        os.remove(cg_dna_dcd_name)
-        os.remove(cg_pro_dcd_name)
+        os.remove(cg_dna_ofile + '.pdb')
+        os.remove(cg_pro_ofile + '.pdb')
+        os.remove(cg_dna_ofile + '.dcd')
+        os.remove(cg_pro_ofile + '.dcd')
 
     if goback > 0 and debug:
         numpy.savetxt('n_from_0' + timestr + '.txt', steps_from_0, fmt='%d')
@@ -1040,8 +1037,10 @@ def dna_mc(trials, theta_max, theta_z_max, debug, goback, n_dcd_write,
     print "accepted %0.2f percent of trials" % (100.0 * n_accept/(n_reject + n_accept))
     # print n_reload
     # print steps_from_0
+    
+    return aa_dcd
 
-def rewind(variables, n_accept, cg_dna_dcd_name, cg_dna, cg_pro_dcd_name, cg_pro, 
+def rewind(variables, n_accept, cg_dna_ofile, cg_dna, cg_pro_ofile, cg_pro, 
            vecX_dcd_name, vecX_mol, vecY_mol, vecY_dcd_name, vecZ_mol,
            vecZ_dcd_name, vecXYZ):
 
@@ -1056,8 +1055,6 @@ def rewind(variables, n_accept, cg_dna_dcd_name, cg_dna, cg_pro_dcd_name, cg_pro
     # i_goback = 0 represents the original structure this is the 1st frame of 
     # the cg_dna_dcd and cg_pro_dcd so increment by 1
         
-    cg_dna.read_single_dcd_step(cg_dna_dcd_name, i_goback + 1)
-    cg_pro.read_single_dcd_step(cg_pro_dcd_name, i_goback + 1) 
     vecX_mol.read_single_dcd_step(vecX_dcd_name, i_goback + 1)
     vecY_mol.read_single_dcd_step(vecY_dcd_name, i_goback + 1)   
     vecZ_mol.read_single_dcd_step(vecZ_dcd_name, i_goback + 1)                                     
@@ -1066,8 +1063,12 @@ def rewind(variables, n_accept, cg_dna_dcd_name, cg_dna, cg_pro_dcd_name, cg_pro
     vecXYZ[2] = vecZ_mol.coor()[0]                
 
     if i_goback == 0:
+        cg_dna.read_pdb(cg_dna_ofile + '.pdb')
+        cg_pro.read_pdb(cg_pro_ofile + '.dcd')
         print '\n~~~ reloaded original coordinates ~~~\n'
     else:	
+        cg_dna.read_single_dcd_step(cg_dna_ofile + '.dcd', i_goback + 1)
+        cg_pro.read_single_dcd_step(cg_pro_ofile + '.dcd', i_goback + 1) 
         print '\n~~~ reloaded accepted coordinates #%d ~~~\n' % i_goback
         
     return i_goback
@@ -1228,38 +1229,59 @@ def main(variables):
         move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, cg_pgroup_masks, 
         all_proteins, aa_all, aa_pro_mask, aa_dna_mask, bp_per_bead
         ) = get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
-                              dna_segnames)
+                              dna_segnames, infile, refpdb, ofile, path)
         rm_pkl = True # set this up for next iteration of the loop
         toc = time.time() - tic 
         print 'Total coarse-grain time = %0.3f seconds' % toc        
             
-        loop_trials = 100
-        remaining_trials -= loop_trials
+        if remaining_trials < loop_trials:
+            loop_trials = remaining_trials
+        else:
+            loop_trials = 100
+
+        remaining_trials -= loop_trials  # increment for the number of trials
+        
+        if debug:
+            print 'loop_trials =', loop_trials
         
         tic = time.time()     
-        dna_mc(loop_trials, theta_max, theta_z_max, debug, goback, n_dcd_write, 
-               keep_unique, keep_cg_files, softrotation, write_flex, cg_dna, 
-               aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads, beadgroups, 
-               move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, 
-               cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask)
+        aa_dcd = dna_mc(loop_trials, theta_max, theta_z_max, debug, goback, 
+                         n_dcd_write, keep_unique, keep_cg_files, softrotation, 
+                         write_flex, cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp,
+                         trialbeads, beadgroups, move_masks, all_beads, 
+                         dna_bead_masks, aa_pgroup_masks, cg_pgroup_masks, 
+                         all_proteins, aa_all, aa_pro_mask, aa_dna_mask)
         toc = time.time() - tic
         print 'run time = %0.3f seconds' % toc
         
         tic = time.time()
-        minimize(aa_all)
+        infile = minimize(aa_dcd, infile, psf_file, )
         toc = time.time() - tic
         print 'minimization time = %0.3f secords' % toc
 
     print '\nFinished %d successful DNA MC moves! \n\m/ >.< \m/' % trials
 
-def minimize(aa_all):
+def minimize(aa_dcd, refpdb, path, psf_file, runname):
     '''
     This method is passes the coordinates for the last structure to the open-mm
     minimizer then return the minimized structure
     '''
     print '---> implement the open-mm minimizer here <---'
+    print 'This is the reference pdb:', refpdb
+    print 'This is the charmm psf:', psf_file
+    raw_structure = sasmol.SasMol(0)
+    raw_structure.read_pdb(path + refpdb)
+    tmp_mol = sasmol.SasMol(0).
+    tmp_mol.open_dcd_read(infile)
+    last_frame = tmp_mol[2]
+    raw_structure.read_single_dcd_step(aa_dcd, last_frame)
+    print 'The last frame of "%s" is loaded into sasmol object: raw_structure' % aa_dcd
+    print 'Store the output here: %s/dna_mc/' % runname
+    print 'Return the filename for the dcd file containing the minimized structure'
+    dummy_min_out = raw_structure.open_dcd_write('dummy_min.dcd')
+    raw_structure.write_dcd_step(dummy_min_out, 0, 1)
     
-    return aa_all
+    return raw_structure
 
 def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids, 
                       dna_segnames, infile, refpdb, ofile, path):
@@ -1345,12 +1367,11 @@ def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
         aa_all = sasmol.SasMol(0)
         if infile[-3:] == 'dcd':
             aa_all.read_pdb(path + refpdb)  
-            #?# Is this the best way to get the last frame from a dcd file?
             tmp_mol = sasmol.SasMol(0)
             tmp_mol.open_dcd_read(infile)
             last_frame = tmp_mol[2]
 
-            if last_frame < 0:
+            if last_frame <= 0:
                 message = 'input dcd file contains no frames or is corrupt'
                 print_failure(message, txtOutput)
                 assert last_frame > 0, (
@@ -1364,7 +1385,6 @@ def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
         else:
             'unknown file type for input structure'
             ruturn
-        
 
         do_cg_dna = do_cg_pro = True
         
