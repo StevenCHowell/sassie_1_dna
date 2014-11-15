@@ -37,6 +37,9 @@ try:
     import cPickle as pickle
 except:
     import pickle as pickle
+    
+# added for openmm
+
 '''
         DS_DNA_MONTE_CARLO is the module that performs Monte Carlo moves on DNA
         structures from a dcd/pdb.
@@ -86,15 +89,18 @@ def unpack_variables(variables):
     n_dcd_write   = variables['n_dcd_write'][0]
     softrotation  = numpy.abs(variables['softrotation'][0])
     rm_pkl        = variables['rm_pkl'][0]
+    openmm_min    = variables['openmm_min'][0]
     seed          = variables['seed'][0]
     temperature   = variables['seed'][0]
 
     return (ofile, infile, refpdb, path, trials, goback, runname, psffile, theta_max, 
             theta_z_max, bp_per_bead, dna_segnames, dna_resids, pro_groups, 
             flex_resids, debug, write_flex, keep_cg_files, keep_unique,
-            n_dcd_write, softrotation, rm_pkl, seed, temperature)
+            n_dcd_write, softrotation, rm_pkl, openmm_min, seed, temperature)
 
-def make_cg_dna(dna_segnames, dna_resids, bp_per_bead, aa_all, frame=0):
+def make_cg_dna(dna_segnames, dna_resids, bp_per_bead, aa_all, 
+                dna_bead_masks=[],aa_dna_mask=[]):
+    frame=0
     dna1 = dna_segnames[0]
     dna2 = dna_segnames[1]
     resid1 = dna_resids[0]
@@ -110,8 +116,9 @@ def make_cg_dna(dna_segnames, dna_resids, bp_per_bead, aa_all, frame=0):
 
     # load the dna into its own sasmol object
     aa_dna = sasmol.SasMol(0)
-    dna_filter = '((moltype[i] == "dna" or moltype[i] == "rna"))' # RNA problem
-    error, aa_dna_mask = aa_all.get_subset_mask(dna_filter)
+    if 0 == len(aa_dna_mask):
+        dna_filter = '((moltype[i] == "dna" or moltype[i] == "rna"))' # RNA problem
+        error, aa_dna_mask = aa_all.get_subset_mask(dna_filter)
     error = aa_all.copy_molecule_using_mask(aa_dna, aa_dna_mask, frame) # select dna
     natomsD = aa_dna.natoms()
     print 'dna atoms =', natomsD
@@ -139,7 +146,11 @@ def make_cg_dna(dna_segnames, dna_resids, bp_per_bead, aa_all, frame=0):
     r1a = resid1[0]
     r2a = resid2[0]
     all_beads = []       # list of the all atom sasmol object for each bead
-    dna_bead_masks = []  # list of the all atom masks for each bead
+    # list of the all atom masks for each bead
+    if dna_bead_masks:
+        do_dna_bead_masks = False
+    else:
+        do_dna_bead_masks = True
 
     print "coarse-graining the DNA, this may take awhile..."
     tic = time.time()
@@ -147,74 +158,79 @@ def make_cg_dna(dna_segnames, dna_resids, bp_per_bead, aa_all, frame=0):
     bp_per_bead = numpy.ones(nbeads,dtype=int) * bp_per_bead
     
     for j in xrange(nbeads):
-        
         bead = sasmol.SasMol(0)
-        if bp_per_bead[j] > 1:
-            if j+1 == nbeads:
-                bp_per_bead[j] = bps - bp_per_bead[j] * j # accomodate remainder
-
-            # Get the atoms from DNA strand 1
-            if resid1[0] < resid1[1]:
-                r1b = r1a + bp_per_bead[j]  # r1b > r1a
-                basis_filter1 = ("((resid[i] > "+str(r1a-1)+" and "
-                                 "resid[i] < "+str(r1b)+") and "
-                                 "(segname[i]=='"+dna1+"')) or ")
-            else:
-                r1b = r1a - bp_per_bead[j]  # r1b < r1a
-                basis_filter1 = ("((resid[i] > "+str(r1b)+" and "
-                                 "resid[i] < "+str(r1a+1)+") and "
-                                 "(segname[i]=='"+dna1+"')) or ")
+        if do_dna_bead_masks:
+            if bp_per_bead[j] > 1:
+                if j+1 == nbeads:
+                    # accomodate for a non-divisible number of residues
+                    bp_per_bead[j] = bps - bp_per_bead[j] * j 
     
-            # Get the atoms from DNA strand 2
-            if resid2[0] < resid2[1]:
-                r2b = r2a + bp_per_bead[j]  # r2b > r2a
-                basis_filter2 = ("((resid[i] > "+str(r2a-1)+" and "
-                                 "resid[i] < "+str(r2b)+") and "
-                                 "(segname[i]=='"+dna2+"'))")
+                # Get the atoms from DNA strand 1
+                if resid1[0] < resid1[1]:
+                    r1b = r1a + bp_per_bead[j]  # r1b > r1a
+                    basis_filter1 = ("((resid[i] > "+str(r1a-1)+" and "
+                                     "resid[i] < "+str(r1b)+") and "
+                                     "(segname[i]=='"+dna1+"')) or ")
+                else:
+                    r1b = r1a - bp_per_bead[j]  # r1b < r1a
+                    basis_filter1 = ("((resid[i] > "+str(r1b)+" and "
+                                     "resid[i] < "+str(r1a+1)+") and "
+                                     "(segname[i]=='"+dna1+"')) or ")
+        
+                # Get the atoms from DNA strand 2
+                if resid2[0] < resid2[1]:
+                    r2b = r2a + bp_per_bead[j]  # r2b > r2a
+                    basis_filter2 = ("((resid[i] > "+str(r2a-1)+" and "
+                                     "resid[i] < "+str(r2b)+") and "
+                                     "(segname[i]=='"+dna2+"'))")
+                else:
+                    r2b = r2a - bp_per_bead[j]   # r2b < r2a
+                    basis_filter2 = ("((resid[i] > "+str(r2b)+" and "
+                                     "resid[i] < "+str(r2a+1)+") and "
+                                     "(segname[i]=='"+dna2+"'))")
             else:
-                r2b = r2a - bp_per_bead[j]   # r2b < r2a
-                basis_filter2 = ("((resid[i] > "+str(r2b)+" and "
-                                 "resid[i] < "+str(r2a+1)+") and "
+                # Get the atoms from DNA strand 1
+                if resid1[0] < resid1[1]:
+                    r1b = r1a + bp_per_bead[j]  # r1b > r1a
+                else:
+                    r1b = r1a - bp_per_bead[j]  # r1b < r1a
+                
+                basis_filter1 = ("((resid[i] == "+str(r1a)+") and "
+                                 "(segname[i]=='"+dna1+"')) or ")
+        
+                # Get the atoms from DNA strand 2
+                if resid2[0] < resid2[1]:
+                    r2b = r2a + bp_per_bead[j]  # r2b > r2a
+                else:
+                    r2b = r2a - bp_per_bead[j]   # r2b < r2a
+    
+                basis_filter2 = ("((resid[i]== "+str(r2a)+") and "
                                  "(segname[i]=='"+dna2+"'))")
+                
+            basis_filter = basis_filter1+basis_filter2
+    
+            # create a mask to select the atoms for the bead
+            error, mask = aa_dna.get_subset_mask(basis_filter)
+    
+            # store the mask for the reverse coarse-graining
+            dna_bead_masks.append(mask)
+
+            # setup for next iteration
+            r1a = r1b
+            r2a = r2b
         else:
-            # Get the atoms from DNA strand 1
-            if resid1[0] < resid1[1]:
-                r1b = r1a + bp_per_bead[j]  # r1b > r1a
-            else:
-                r1b = r1a - bp_per_bead[j]  # r1b < r1a
+            mask = dna_bead_masks[j]
             
-            basis_filter1 = ("((resid[i] == "+str(r1a)+") and "
-                             "(segname[i]=='"+dna1+"')) or ")
-    
-            # Get the atoms from DNA strand 2
-            if resid2[0] < resid2[1]:
-                r2b = r2a + bp_per_bead[j]  # r2b > r2a
-            else:
-                r2b = r2a - bp_per_bead[j]   # r2b < r2a
-
-            basis_filter2 = ("((resid[i]== "+str(r2a)+") and "
-                             "(segname[i]=='"+dna2+"'))")
-            
-        basis_filter = basis_filter1+basis_filter2
-
-        # create a mask to select the atoms for the bead
-        error, mask = aa_dna.get_subset_mask(basis_filter)
-
-        # store the mask for the reverse coarse-graining
-        dna_bead_masks.append(mask)
         error = aa_dna.copy_molecule_using_mask(bead, mask, frame)
 
+        # not the best choice > COMs of bps in linear DNA isn't perfectly linear
         com = bead.calccom(frame)
         cg_coor[0, j, :] = com  # a list of the com coordinate for each bead
 
-        # calculate atomic coodinates using the bead com as the origin
+        # calculate atomic coodinates, using the bead com as the origin
         bead.center(0)
         all_beads.append(bead)
         
-        # setup for next iteration
-        r1a = r1b
-        r2a = r2b
-    
     cg_dna.setCoor(cg_coor)  #; print cg_dna._coor[frame, :, 0]
 
     vecXYZ = numpy.zeros((3, nbeads, 3))
@@ -1170,8 +1186,8 @@ def main(variables):
     (ofile, infile, refpdb, path, trials, goback, runname, psffile, theta_max, 
      theta_z_max, bp_per_bead, dna_segnames, dna_resids, pro_groups, 
      flex_resids, debug, write_flex, keep_cg_files, keep_unique,
-     n_dcd_write, softrotation, rm_pkl, seed, temperature) = unpack_variables(
-         variables)
+     n_dcd_write, softrotation, rm_pkl, openmm_min, seed, temperature
+     ) = unpack_variables(variables)
     
     
     # set the DNA properties parameters:
@@ -1240,16 +1256,19 @@ def main(variables):
     remaining_trials = trials
     aa_dcdfiles = []
     cg_dna_dcdfiles = []    
-    cg_pro_dcdfiles = []    
+    cg_pro_dcdfiles = []  
+    dna_bead_masks = []
+    aa_dna_mask = []
+    pkl_file = False
     while remaining_trials > 0:
 
         tic = time.time()
         (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, trialbeads, beadgroups, 
         move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, cg_pgroup_masks, 
-        all_proteins, aa_all, aa_pro_mask, aa_dna_mask, bp_per_bead
-        ) = get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
-                              dna_segnames, infile, refpdb, ofile, path)
-        rm_pkl = True # set this up for next iteration of the loop
+        all_proteins, aa_all, aa_pro_mask, aa_dna_mask, bp_per_bead, pkl_file
+        ) = get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, 
+                              dna_resids, dna_segnames, infile, refpdb, ofile, 
+                              path, i_loop, pkl_file)
         toc = time.time() - tic 
         print 'Total coarse-grain time = %0.3f seconds' % toc        
             
@@ -1263,22 +1282,21 @@ def main(variables):
         
         tic = time.time()     
         aa_ofile, cg_dna_ofile, cg_pro_ofile = dna_mc(loop_trials, i_loop,
-                                        theta_max, theta_z_max, debug, goback, 
-                         n_dcd_write, keep_unique, keep_cg_files, softrotation, 
-                         write_flex, runname, ofile, cg_dna, aa_dna, cg_pro, aa_pro, 
-                         vecXYZ, lp, trialbeads, beadgroups, move_masks, 
-                         all_beads, dna_bead_masks, aa_pgroup_masks, 
-                         cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, 
-                         aa_dna_mask)
+            theta_max, theta_z_max, debug, goback, n_dcd_write, keep_unique, 
+            keep_cg_files, softrotation, write_flex, runname, ofile, cg_dna, 
+            aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads, beadgroups, 
+            move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, 
+            cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask)
         aa_dcdfiles.append(aa_ofile)
         cg_dna_dcdfiles.append(cg_dna_ofile)
         cg_pro_dcdfiles.append(cg_pro_ofile)
         toc = time.time() - tic
-        print 'run time = %0.3f seconds' % toc
+        print 'loop time = %0.3f seconds' % toc
         
         if remaining_trials > 0:
             tic = time.time()
-            infile = minimize(aa_ofile, refpdb, path, psffile, runname)
+            infile = minimize(aa_ofile, refpdb, path, psffile, runname, 
+                              temperature, openmm_min, debug, i_loop)
             toc = time.time() - tic
             print 'minimization time = %0.3f secords' % toc
             i_loop += 1
@@ -1326,8 +1344,8 @@ def combine_output(runname, refpdb, txtOutput, ofile, aa_dcdfiles, debug,
     outdir = runname + '/dna_mc/'
     try:
         os.system('mv ' + output_path + 'generate/* ' + outdir)
-        output_log_file.write('moved all files in %s to %s\n' % (
-            output_path+'/generate/', outdir))
+        output_log_file.write('moved all output files from %s to %s\n' % (
+            output_path+'generate/', outdir))
         os.system('rmdir ' + output_path + 'generate/')
     except:
         message = ('cannot move combined output dcd files into the project '
@@ -1336,32 +1354,75 @@ def combine_output(runname, refpdb, txtOutput, ofile, aa_dcdfiles, debug,
 
     output_log_file.close()
 
-def minimize(aa_dcd, refpdb, path, psffile, runname):
+class my_variables(object):
+    def __init__(self, dcdfile=None, pdbfile=None, psffile=None, topfile=None,
+                 parmfile=None, integrator=None):
+        pass
+        
+
+def minimize(aa_dcd, refpdb, path, psffile, runname, temperature, openmm_min,
+             debug, i_loop):
     '''
     This method is passes the coordinates for the last structure to the open-mm
     minimizer then return the minimized structure
     '''
-    print '\n\n---> implement the open-mm minimizer here <---'
-    print 'This is the reference pdb:\t', refpdb
-    print 'This is the charmm psf:\t', psffile
-    raw_structure = sasmol.SasMol(0)
-    raw_structure.read_pdb(path + refpdb)
-    tmp_mol = sasmol.SasMol(0)
-    dcdfile = tmp_mol.open_dcd_read(aa_dcd)
-    last_frame = dcdfile[2]
-    raw_structure.read_single_dcd_step(aa_dcd, last_frame)
-    print '\n\nThe last frame of "%s" is loaded into sasmol object: raw_structure' % aa_dcd
-    print 'Store the minimization output here: %s/dna_mc/' % runname
-    print 'this module should return the filename for the dcd file containing the minimized structure'
-    min_file = runname+'/dna_mc/dummy_min.dcd'
-    dummy_min_out = raw_structure.open_dcd_write(min_file)
-    raw_structure.write_dcd_step(dummy_min_out, 0, 1)
-    raw_structure.close_dcd_write(dummy_min_out)
-    
-    return min_file
+    if openmm_min or debug:
+        import sassie.sasconfig as sasconfig
+        # import sys,locale,subprocess
+        
+        if openmm_min:
+            
+            import sassie.simulate.openmm.openmm as omm
+            from simtk.openmm.app import *
+            from simtk.openmm import *
+
+            import  simtk.unit as unit
+            # from sys import stdout, exit, stderr
+            # energy_convergence = None# energy_convergence = None
+            energy_convergence = 1.0*unit.kilojoule/unit.mole  # the default value
+            step_size = 0.002*unit.picoseconds  # 1000000*0.002 = 2 ns total simulation time
+            variables.integrator = LangevinIntegrator(temperature*unit.kelvin, 1/unit.picosecond, step_size)
+
+        max_steps = 5000
+        number_of_equilibration_steps = 1000
+        number_of_nvt_steps = 1000
+        
+        toppath = sasconfig._bin_path+'/toppar/'
+        testpath = '/Users/curtisj/Desktop/august_sassie_development/svn_utk/sassie_1.0/trunk/testing/'
+        testpath = '/home/curtisj/svn_utk/svn/sassie_1.0/trunk/testing/'
+        
+        variables = my_variables()
+        variables.dcdfile = aa_dcd
+        variables.pdbfile = path + refpdb
+        variables.psffile = psffile
+        variables.topfile = toppath+'top_all27_prot_na.inp'
+        variables.parmfile = toppath+ 'par_all27_prot_na.inp'
+
+        # load the pdb then find and load the last structure from the dcd
+        raw_structure = sasmol.SasMol(0)
+        raw_structure.read_pdb(variables.pdbfile)
+        tmp_mol = sasmol.SasMol(0)
+        dcdfile = tmp_mol.open_dcd_read(variables.dcdfile)
+        last_frame = dcdfile[2]
+        raw_structure.read_single_dcd_step(aa_dcd, last_frame)
+
+        if openmm_min:
+            if i_loop == 0:
+                simulation = omm.initialize_system(variables)   
+            omm.energy_minimization(simulation,raw_structure,energy_convergence,max_steps)
+
+        min_file = '%s_min.dcd' % aa_dcd[:-4]
+        raw_structure.write_dcd(min_file)
+        print 'minimized structure: %s' % min_file
+    else:
+        print 'no minimization selected, returing raw file'
+        return aa_dcd
+
+    return min_file 
 
 def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids, 
-                      dna_segnames, infile, refpdb, ofile, path):
+                      dna_segnames, infile, refpdb, ofile, path, i_loop=0, 
+                      pkl_file=False):
     '''
     This method is designed to generate the coarse-grained run parameters then
     save them to a pickle file for future use.  If the pickle file already 
@@ -1375,13 +1436,14 @@ def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
     re-coarse-graining after a minimization.  
     '''
 
-    pkl_file = path + infile[:-3] + 'pkl'
+    if not pkl_file:
+        pkl_file = path + infile[:-3] + 'pkl'
 
-    if os.path.isfile(pkl_file) and rm_pkl:
+    if os.path.isfile(pkl_file) and rm_pkl and i_loop == 0:
         print '>>> removing cg paramaters for %s: %s' % (infile, pkl_file)
         os.remove(pkl_file)
 
-    do_cg_pro = do_cg_dna = do_dna_flex = False
+    do_cg_pro = do_cg_dna = do_dna_flex = load_infile = False
 
     # if pickle_file exists:
     if os.path.isfile(pkl_file):
@@ -1389,13 +1451,15 @@ def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
         # load pickle_file
         pkl_in = open(pkl_file, 'rb')
 
-        # critical
+        # coordinate dependent
         cg_dna          = pickle.load(pkl_in)
-        aa_dna          = pickle.load(pkl_in)
         cg_pro          = pickle.load(pkl_in)
+        aa_dna          = pickle.load(pkl_in)
         aa_pro          = pickle.load(pkl_in)
+        aa_all          = pickle.load(pkl_in)
         vecXYZ          = pickle.load(pkl_in)
 
+        # independent of coordinates
         trialbeads      = pickle.load(pkl_in)
         beadgroups      = pickle.load(pkl_in)
 
@@ -1405,7 +1469,6 @@ def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
         aa_pgroup_masks = pickle.load(pkl_in)
         cg_pgroup_masks = pickle.load(pkl_in)
         all_proteins    = pickle.load(pkl_in)
-        aa_all          = pickle.load(pkl_in)
         aa_pro_mask     = pickle.load(pkl_in)
         aa_dna_mask     = pickle.load(pkl_in)
         
@@ -1418,28 +1481,24 @@ def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
         pkl_in.close()
         
         # check if input parameters have changes since last using this pdb
-        if pro_groups != pro_groups_old:
+        if pro_groups != pro_groups_old or i_loop > 0:
             do_cg_pro = True
-            print '>>>Previous run parameter, %s, conflict with present run' % 'pro_groups'
             print '>>>Re-coarse-graining the Protein'               
-            
-        try:
-            if variables['bp_per_bead'][0] != variables_old['bp_per_bead'][0]:
-                do_cg_dna = True
-                print '>>>Previous run parameter, %s, conflict with present run' % 'bp_per_bead'
-                print '>>>Re-coarse-graining the DNA'       
-        except:
+        
+        if variables['bp_per_bead'][0] != variables_old['bp_per_bead'][0] or i_loop > 0:
             do_cg_dna = True
-            print '>>>Previous run parameter, %s, conflict with present run' % 'bp_per_bead'
             print '>>>Re-coarse-graining the DNA'       
-            
 
         if flex_resids != flex_resids_old:
             do_dna_flex = True
-            print '>>>Previous run parameter, %s, conflict with present run' % 'flex_resids'
             print '>>>Re-identifying flexible residues'       
             
     else:
+        do_cg_dna = do_cg_pro = load_infile = True
+        dna_bead_masks = []
+        aa_dna_mask = []
+        
+    if i_loop > 0 or load_infile:
         # load in the all atom pdb
         aa_all = sasmol.SasMol(0)
         if infile[-3:] == 'dcd':
@@ -1463,14 +1522,12 @@ def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
             'unknown file type for input structure'
             ruturn
 
-        do_cg_dna = do_cg_pro = True
-        
-
     if do_cg_dna:
         #~~~ DNA ONLY SECTION ~~~#
         (aa_dna, aa_dna_mask, cg_dna, all_beads, dna_bead_masks, 
          vecXYZ, bp_per_bead_array) = make_cg_dna(dna_segnames, dna_resids, 
-                                            variables['bp_per_bead'][0], aa_all)
+                                            variables['bp_per_bead'][0], aa_all,
+                                            dna_bead_masks, aa_dna_mask)
         do_dna_flex = True
         
     if do_dna_flex:
@@ -1490,20 +1547,24 @@ def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
         # create the pickle_file for future use
         pkl_out = open(pkl_file, 'wb')
 
+        # coordinate dependent
         pickle.dump(cg_dna, pkl_out, -1)
-        pickle.dump(aa_dna, pkl_out, -1)
         pickle.dump(cg_pro, pkl_out, -1)
+        pickle.dump(aa_dna, pkl_out, -1)
         pickle.dump(aa_pro, pkl_out, -1)
+        pickle.dump(aa_all, pkl_out, -1)
         pickle.dump(vecXYZ, pkl_out, -1)
+
+        # independent of coordinates
         pickle.dump(trialbeads, pkl_out, -1)
         pickle.dump(beadgroups, pkl_out, -1) 
+
         pickle.dump(move_masks, pkl_out, -1) 
         pickle.dump(all_beads, pkl_out, -1) 
         pickle.dump(dna_bead_masks, pkl_out, -1)
         pickle.dump(aa_pgroup_masks, pkl_out, -1) 
         pickle.dump(cg_pgroup_masks, pkl_out, -1) 
         pickle.dump(all_proteins, pkl_out, -1)  
-        pickle.dump(aa_all, pkl_out, -1)
         pickle.dump(aa_pro_mask, pkl_out, -1)    
         pickle.dump(aa_dna_mask, pkl_out, -1)    
 
@@ -1522,7 +1583,7 @@ def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
     return (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, trialbeads, beadgroups, 
             move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, 
             cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask,
-            bp_per_bead_array)
+            bp_per_bead_array, pkl_file)
 
 def prepare_dna_mc_input(variables):
     # ~~~~Generate 'flex_resid' list~~~~
@@ -1583,7 +1644,7 @@ if __name__ == "__main__":
     svariables['refpdb']  = ('new_dsDNA60.pdb', 'string')
     svariables['psffile'] = ('new_dsDNA60.psf', 'string')
     svariables['ofile']   = ('new_dsDNA60_mc.dcd', 'string')
-    svariables['trials']  = ('150', 'int')
+    svariables['trials']  = ('250', 'int')
     svariables['goback']  = ('50', 'int')
     
     # Molecule Specific Input
@@ -1607,11 +1668,12 @@ if __name__ == "__main__":
     svariables['n_dcd_write']   = ('1', 'int') # set to N > 1 to only record structures after every N trials
     svariables['seed']          = ('0', 'int') # goback random seed
     svariables['temperature']   = ('300', 'float') # may be incorperated for electrostatics
-    svariables['debug']         = ('False', 'bool') # 'True' will display debug output
+    svariables['debug']         = ('True', 'bool') # 'True' will display debug output
     svariables['write_flex']    = ('False', 'bool') # 'True' will generate a file labeling paird DNA base pairs for all flexible beads (useful for calculating dihedral angles)
     svariables['keep_cg_files'] = ('False', 'bool') # 'True' will keep the coarse-grain DNA and protein pdb and dcd files
     svariables['keep_unique']   = ('True', 'bool') # 'False' will keep duplicate structure when move fails
     svariables['rm_pkl']        = ('False', 'bool') # 'True' will remove the coarse-grain pkl file forcing a re-coarse-graining (can be time consuming often necessary)
+    svariables['openmm_min']    = ('False', 'bool') # 'True' will remove the coarse-grain pkl file forcing a re-coarse-graining (can be time consuming often necessary)    
 
     error, variables = input_filter.type_check_and_convert(svariables)
     variables = prepare_dna_mc_input(variables)
