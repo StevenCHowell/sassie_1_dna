@@ -27,7 +27,7 @@
 '''
 
 import sassie.sasmol.sasmol as sasmol
-import dna.energy.collision as collision
+import sassie.simulate.monte_carlo.ds_dna_monte_carlo.collision as collision
 import random, warnings, time, os, numpy
 import sassie.simulate.monte_carlo.ds_dna_monte_carlo.special.input_filter as input_filter
 from sassie.tools.merge_utilities import merge_dcd_files
@@ -39,6 +39,17 @@ except:
     import pickle as pickle
     
 # added for openmm
+import sassie.sasconfig as sasconfig
+# import sys,locale,subprocess
+# from sys import stdout, exit, stderr
+try:
+    import sassie.simulate.openmm.openmm as omm
+    from simtk.openmm.app import *
+    from simtk.openmm import *
+    import  simtk.unit as unit
+except:
+    print 'failed to load packages for running openmm'
+    print 'BE AWARE: will continue to run with non-optimal setup'
 
 '''
         DS_DNA_MONTE_CARLO is the module that performs Monte Carlo moves on DNA
@@ -1260,6 +1271,7 @@ def main(variables):
     dna_bead_masks = []
     aa_dna_mask = []
     pkl_file = False
+    simulation = []
     while remaining_trials > 0:
 
         tic = time.time()
@@ -1295,8 +1307,9 @@ def main(variables):
         
         if remaining_trials > 0:
             tic = time.time()
-            infile = minimize(aa_ofile, refpdb, path, psffile, runname, 
-                              temperature, openmm_min, debug, i_loop)
+            infile, simulation = minimize(aa_ofile, refpdb, path, psffile,
+                                          runname, temperature, openmm_min, 
+                                          debug, i_loop, simulation)
             toc = time.time() - tic
             print 'minimization time = %0.3f secords' % toc
             i_loop += 1
@@ -1355,70 +1368,58 @@ def combine_output(runname, refpdb, txtOutput, ofile, aa_dcdfiles, debug,
     output_log_file.close()
 
 class my_variables(object):
-    def __init__(self, dcdfile=None, pdbfile=None, psffile=None, topfile=None,
-                 parmfile=None, integrator=None):
+    def __init__(self, pdbfile=None, psffile=None, topfile=None, parmfile=None, 
+                 integrator=None):
         pass
         
 
 def minimize(aa_dcd, refpdb, path, psffile, runname, temperature, openmm_min,
-             debug, i_loop):
+             debug, i_loop, simulation):
     '''
     This method is passes the coordinates for the last structure to the open-mm
     minimizer then return the minimized structure
     '''
-    if openmm_min or debug:
-        import sassie.sasconfig as sasconfig
-        # import sys,locale,subprocess
-        
-        if openmm_min:
-            
-            import sassie.simulate.openmm.openmm as omm
-            from simtk.openmm.app import *
-            from simtk.openmm import *
 
-            import  simtk.unit as unit
-            # from sys import stdout, exit, stderr
-            # energy_convergence = None# energy_convergence = None
-            energy_convergence = 1.0*unit.kilojoule/unit.mole  # the default value
+    max_steps = 5000
+    number_of_equilibration_steps = 1000
+    number_of_nvt_steps = 1000
+    
+    toppath = sasconfig._bin_path+'/toppar/'
+    testpath = '/Users/curtisj/Desktop/august_sassie_development/svn_utk/sassie_1.0/trunk/testing/'
+    testpath = '/home/curtisj/svn_utk/svn/sassie_1.0/trunk/testing/'
+    
+    variables = my_variables()
+    variables.pdbfile = path + refpdb
+
+    # load the pdb then find and load the last structure from the dcd
+    raw_structure = sasmol.SasMol(0)
+    raw_structure.read_pdb(variables.pdbfile)
+    tmp_mol = sasmol.SasMol(0)
+    dcdfile = tmp_mol.open_dcd_read(aa_dcd)
+    last_frame = dcdfile[2]
+    raw_structure.read_single_dcd_step(aa_dcd, last_frame)
+
+    if openmm_min:
+        # energy_convergence = None# energy_convergence = None
+        energy_convergence = 1.0*unit.kilojoule/unit.mole  # the default value
+        if i_loop == 0:
+            variables.psffile = psffile
+            variables.topfile = toppath+'top_all27_prot_na.inp'
+            variables.parmfile = toppath+ 'par_all27_prot_na.inp'            
             step_size = 0.002*unit.picoseconds  # 1000000*0.002 = 2 ns total simulation time
             variables.integrator = LangevinIntegrator(temperature*unit.kelvin, 1/unit.picosecond, step_size)
-
-        max_steps = 5000
-        number_of_equilibration_steps = 1000
-        number_of_nvt_steps = 1000
-        
-        toppath = sasconfig._bin_path+'/toppar/'
-        testpath = '/Users/curtisj/Desktop/august_sassie_development/svn_utk/sassie_1.0/trunk/testing/'
-        testpath = '/home/curtisj/svn_utk/svn/sassie_1.0/trunk/testing/'
-        
-        variables = my_variables()
-        variables.dcdfile = aa_dcd
-        variables.pdbfile = path + refpdb
-        variables.psffile = psffile
-        variables.topfile = toppath+'top_all27_prot_na.inp'
-        variables.parmfile = toppath+ 'par_all27_prot_na.inp'
-
-        # load the pdb then find and load the last structure from the dcd
-        raw_structure = sasmol.SasMol(0)
-        raw_structure.read_pdb(variables.pdbfile)
-        tmp_mol = sasmol.SasMol(0)
-        dcdfile = tmp_mol.open_dcd_read(variables.dcdfile)
-        last_frame = dcdfile[2]
-        raw_structure.read_single_dcd_step(aa_dcd, last_frame)
-
-        if openmm_min:
-            if i_loop == 0:
-                simulation = omm.initialize_system(variables)   
-            omm.energy_minimization(simulation,raw_structure,energy_convergence,max_steps)
-
-        min_file = '%s_min.dcd' % aa_dcd[:-4]
-        raw_structure.write_dcd(min_file)
-        print 'minimized structure: %s' % min_file
+            simulation = omm.initialize_system(variables)   
+        omm.energy_minimization(simulation,raw_structure,energy_convergence,max_steps)
     else:
         print 'no minimization selected, returing raw file'
-        return aa_dcd
+        return aa_dcd, simulation
+    
+    min_file = '%s_min.dcd' % aa_dcd[:-4]
+    raw_structure.write_dcd(min_file)
+    print 'minimized structure: %s' % min_file
 
-    return min_file 
+
+    return min_file, simulation
 
 def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids, 
                       dna_segnames, infile, refpdb, ofile, path, i_loop=0, 
@@ -1668,12 +1669,12 @@ if __name__ == "__main__":
     svariables['n_dcd_write']   = ('1', 'int') # set to N > 1 to only record structures after every N trials
     svariables['seed']          = ('0', 'int') # goback random seed
     svariables['temperature']   = ('300', 'float') # may be incorperated for electrostatics
-    svariables['debug']         = ('True', 'bool') # 'True' will display debug output
+    svariables['debug']         = ('False', 'bool') # 'True' will display debug output
     svariables['write_flex']    = ('False', 'bool') # 'True' will generate a file labeling paird DNA base pairs for all flexible beads (useful for calculating dihedral angles)
     svariables['keep_cg_files'] = ('False', 'bool') # 'True' will keep the coarse-grain DNA and protein pdb and dcd files
     svariables['keep_unique']   = ('True', 'bool') # 'False' will keep duplicate structure when move fails
     svariables['rm_pkl']        = ('False', 'bool') # 'True' will remove the coarse-grain pkl file forcing a re-coarse-graining (can be time consuming often necessary)
-    svariables['openmm_min']    = ('False', 'bool') # 'True' will remove the coarse-grain pkl file forcing a re-coarse-graining (can be time consuming often necessary)    
+    svariables['openmm_min']    = ('True', 'bool') # 'True' will remove the coarse-grain pkl file forcing a re-coarse-graining (can be time consuming often necessary)    
 
     error, variables = input_filter.type_check_and_convert(svariables)
     variables = prepare_dna_mc_input(variables)
