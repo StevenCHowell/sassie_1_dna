@@ -765,7 +765,7 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
            cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads, beadgroups, 
            move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, 
            cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask, 
-           dna_type='b'):
+           seed=0, dna_type='b'):
     '''
     this function perform nsteps Monte-Carlo moves on the cg_dna
     '''
@@ -1298,7 +1298,8 @@ def main(variables):
             keep_cg_files, softrotation, write_flex, runname, ofile, cg_dna, 
             aa_dna, cg_pro, aa_pro, vecXYZ, lp, trialbeads, beadgroups, 
             move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, 
-            cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask)
+            cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask,
+            seed)
         aa_dcdfiles.append(aa_ofile)
         cg_dna_dcdfiles.append(cg_dna_ofile)
         cg_pro_dcdfiles.append(cg_pro_ofile)
