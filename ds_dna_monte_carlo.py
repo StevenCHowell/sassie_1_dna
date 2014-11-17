@@ -543,7 +543,7 @@ def align2z(coor4):
         #s A = numpy.dot(Axz, Az) #;   print 'A3=\n', A
     return A
 
-def beadRotate(coor3, vecXYZ, thetas, n_soft, p_coor3):
+def beadRotate(coor3, vecXYZ, thetas, p_coor3, n_soft=1):
     '''
     this function is designed to generate a modified version of the input
     coordinates (coor3)
@@ -772,7 +772,6 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
 
     if softrotation > 1 and debug:
         print 'softening all rotaitons over %d beads' % softrotation
-        print 'softening all rotaitons over %d beads' % softrotation
 
     # timestr = time.strftime("_%y%m%d_%H%M%S") # suffix for output files
 
@@ -897,7 +896,7 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
         # generate a newly rotated model
         (d_coor[trial_bead:], xyz[:, trial_bead:], p_coor_rot) = beadRotate(
             d_coor[trial_bead-1:], xyz[:, trial_bead-1:], thetaXYZ,
-            softrotation, p_coor_rot) 
+            p_coor_rot, softrotation) 
 
         # store the rotated protein coordinates
         if beadgroups[trial_bead] < len(move_masks):
@@ -1278,9 +1277,9 @@ def main(variables):
         (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, trialbeads, beadgroups, 
         move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, cg_pgroup_masks, 
         all_proteins, aa_all, aa_pro_mask, aa_dna_mask, bp_per_bead, pkl_file
-        ) = get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, 
-                              dna_resids, dna_segnames, infile, refpdb, ofile, 
-                              path, i_loop, pkl_file)
+        ) = get_cg_parameters(flex_resids, dna_resids, dna_segnames, infile, 
+                              refpdb, bp_per_bead, pro_groups, path, rm_pkl, debug, i_loop, 
+                              pkl_file)
         toc = time.time() - tic 
         print 'Total coarse-grain time = %0.3f seconds' % toc        
             
@@ -1422,9 +1421,9 @@ def minimize(aa_dcd, refpdb, path, psffile, runname, temperature, openmm_min,
 
     return min_file, simulation
 
-def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids, 
-                      dna_segnames, infile, refpdb, ofile, path, i_loop=0, 
-                      pkl_file=False):
+def get_cg_parameters(flex_resids, dna_resids, dna_segnames, infile, refpdb, 
+                      bp_per_bead, pro_groups=[], path='./', rm_pkl=False, 
+                      debug=False, i_loop=0, pkl_file=False):
     '''
     This method is designed to generate the coarse-grained run parameters then
     save them to a pickle file for future use.  If the pickle file already 
@@ -1437,7 +1436,12 @@ def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
     to force the removal of the pickle file.  This should occur when 
     re-coarse-graining after a minimization.  
     '''
-
+    try:
+        bp_per_bead_val0 = bp_per_bead[0]
+        bp_per_bead_array = bp_per_bead
+    except:
+        bp_per_bead_val0 = bp_per_bead
+        
     if not pkl_file:
         pkl_file = path + infile[:-3] + 'pkl'
 
@@ -1475,10 +1479,14 @@ def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
         aa_dna_mask     = pickle.load(pkl_in)
         
         # input parametrs used to generate these cg-parameters
-        variables_old     = pickle.load(pkl_in)        
-        flex_resids_old   = pickle.load(pkl_in)
-        pro_groups_old    = pickle.load(pkl_in)
-        bp_per_bead_array = pickle.load(pkl_in)
+        infile_old      = pickle.load(pkl_in)
+        refpdb_old      = pickle.load(pkl_in)
+        dna_resids      = pickle.load(pkl_in)
+        dna_segnames    = pickle.load(pkl_in)
+        
+        flex_resids_old = pickle.load(pkl_in)
+        pro_groups_old  = pickle.load(pkl_in)
+        bp_per_bead_old = pickle.load(pkl_in)
         
         pkl_in.close()
         
@@ -1486,10 +1494,12 @@ def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
         if pro_groups != pro_groups_old or i_loop > 0:
             do_cg_pro = True
             print '>>>Re-coarse-graining the Protein'               
-        
-        if variables['bp_per_bead'][0] != variables_old['bp_per_bead'][0] or i_loop > 0:
+
+        if bp_per_bead_val0 != bp_per_bead_old[0] or i_loop > 0:
             do_cg_dna = True
             print '>>>Re-coarse-graining the DNA'       
+        else:
+            bp_per_bead_array = bp_per_bead_old
 
         if flex_resids != flex_resids_old:
             do_dna_flex = True
@@ -1528,7 +1538,7 @@ def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
         #~~~ DNA ONLY SECTION ~~~#
         (aa_dna, aa_dna_mask, cg_dna, all_beads, dna_bead_masks, 
          vecXYZ, bp_per_bead_array) = make_cg_dna(dna_segnames, dna_resids, 
-                                            variables['bp_per_bead'][0], aa_all,
+                                            bp_per_bead_val0, aa_all,
                                             dna_bead_masks, aa_dna_mask)
         do_dna_flex = True
         
@@ -1571,7 +1581,11 @@ def get_cg_parameters(rm_pkl, debug, flex_resids, pro_groups, dna_resids,
         pickle.dump(aa_dna_mask, pkl_out, -1)    
 
         # input parameters used to get these cg-parameters
-        pickle.dump(variables, pkl_out, -1)
+        pickle.dump(infile, pkl_out, -1)        
+        pickle.dump(refpdb, pkl_out, -1)        
+        
+        pickle.dump(dna_resids, pkl_out, -1)
+        pickle.dump(dna_segnames, pkl_out, -1)        
         pickle.dump(flex_resids, pkl_out, -1)
         pickle.dump(pro_groups, pkl_out, -1)        
         pickle.dump(bp_per_bead_array, pkl_out, -1)
@@ -1675,7 +1689,7 @@ if __name__ == "__main__":
     svariables['keep_cg_files'] = ('False', 'bool') # 'True' will keep the coarse-grain DNA and protein pdb and dcd files
     svariables['keep_unique']   = ('True', 'bool') # 'False' will keep duplicate structure when move fails
     svariables['rm_pkl']        = ('False', 'bool') # 'True' will remove the coarse-grain pkl file forcing a re-coarse-graining (can be time consuming often necessary)
-    svariables['openmm_min']    = ('True', 'bool') # 'True' will remove the coarse-grain pkl file forcing a re-coarse-graining (can be time consuming often necessary)    
+    svariables['openmm_min']    = ('False', 'bool') # 'True' will remove the coarse-grain pkl file forcing a re-coarse-graining (can be time consuming often necessary)    
 
     error, variables = input_filter.type_check_and_convert(svariables)
     variables = prepare_dna_mc_input(variables)
