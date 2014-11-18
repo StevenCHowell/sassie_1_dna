@@ -6,9 +6,9 @@ import sys,os,string,locale,math
 import dna.ds_dna_monte_carlo as ddmc
 
 sys.path.append('./')
-import sh_box_of_balls
+import sh_box_of_balls as box_of_balls
 
-def make_groups(hybrid,number_of_groups,residues_in_groups):
+def make_groups(hybrid, number_of_groups, residues_in_groups):
 
     frame = 0
     resid = hybrid.resid()
@@ -22,17 +22,45 @@ def make_groups(hybrid,number_of_groups,residues_in_groups):
             else:
                 basis += ' or resid[i] == '+str(this_resids[j])
 
-        print '>> creating basis = ',basis
-        error,mask = hybrid.get_subset_mask(basis)
+        print '>> creating basis = ', basis
+        error, mask = hybrid.get_subset_mask(basis)
         group_masks.append(mask)
         this_group = sasmol.SasMol(0)
-        error = hybrid.copy_molecule_using_mask(this_group,mask,frame)
+        error = hybrid.copy_molecule_using_mask(this_group, mask, frame)
         groups.append(this_group)
 
-    return groups,group_masks
+    return groups, group_masks
 
+def make_complex_groups(hybrid, residues_in_groups, segnames_in_groups):
+    
+    assert len(residues_in_groups) == len(segnames_in_groups), ('inputs do not match')
 
-def get_this_residue_local_coordinates_protein(this_group,residue_to_rotate,first_last_resid):
+    frame = 0
+    resid = hybrid.resid()
+    group_masks = []
+    groups = []
+    for (i, res_group) in enumerate(residues_in_groups):
+        basis = '( '
+        for (j, resids) in enumerate(res_group):
+            if j > 0:
+                basis += ' or '
+            for (k, resid) in enumerate(resids):
+                if k==0:
+                    basis += '((segname[i] == "'+segnames_in_groups[i][j]+'") and (resid[i] == '+str(resid)
+                else:
+                    basis += ' or resid[i] == '+str(resid)
+            basis += ')) '
+        basis += ')'
+        print '>> creating basis = ', basis
+        error, mask = hybrid.get_subset_mask(basis)
+        group_masks.append(mask)
+        this_group = sasmol.SasMol(0)
+        error = hybrid.copy_molecule_using_mask(this_group, mask, frame)
+        groups.append(this_group)
+
+    return groups, group_masks
+
+def get_this_residue_local_coordinates_protein(this_group, residue_to_rotate, first_last_resid):
 
     lcoor = None
     frame = 0
@@ -57,13 +85,13 @@ def get_this_residue_local_coordinates_protein(this_group,residue_to_rotate,firs
         this_resid = str(residue_to_rotate)
         basis = '(moltype[i] == "protein" and (resid[i] == '+this_resid+' and (name[i] == "N" or name[i] == "CA" or name[i] == "C")) or (resid[i] == '+next_resid+' and name[i] == "N" ) or (resid[i] == '+previous_resid+' and name[i] == "C" ) )'	
 
-    error,mask = this_group.get_subset_mask(basis)
+    error, mask = this_group.get_subset_mask(basis)
 
-    error,lcoor = this_group.get_coor_using_mask(frame,mask)
+    error, lcoor = this_group.get_coor_using_mask(frame, mask)
 
     return lcoor[0]
 
-def get_protein_watch_value(this_group,residue_to_rotate,angle,backward):
+def get_protein_watch_value(this_group, residue_to_rotate, angle, backward):
 
     if(angle == "phi"):
         if(backward):
@@ -76,14 +104,14 @@ def get_protein_watch_value(this_group,residue_to_rotate,angle,backward):
         else:
             basis = 'name[i] == "CA" and resid[i] == '+str(residue_to_rotate)
 
-    error,mask = this_group.get_subset_mask(basis)	
-    watch_value = (numpy.nonzero(mask*numpy.arange(1,this_group.natoms()+1))[0])[0]
+    error, mask = this_group.get_subset_mask(basis)	
+    watch_value = (numpy.nonzero(mask*numpy.arange(1, this_group.natoms()+1))[0])[0]
 
-#	print 'resname = ',this_group.resname()[watch_value],'seg = ',this_group.segname()[watch_value],'name = ',this_group.name()[watch_value],'index = ',this_group.index()[watch_value],'resid = ',this_group.resid()[watch_value]
+#	print 'resname = ', this_group.resname()[watch_value], 'seg = ', this_group.segname()[watch_value], 'name = ', this_group.name()[watch_value], 'index = ', this_group.index()[watch_value], 'resid = ', this_group.resid()[watch_value]
 
     return watch_value
 
-def rotate_protein_backbone_dihedral(this_group,residue_to_rotate,angle,theta,backward):
+def rotate_protein_backbone_dihedral(this_group, residue_to_rotate, angle, theta, backward):
 
 #	print '>> rotating protein protein backbone dihedral'
     frame = 0
@@ -92,33 +120,33 @@ def rotate_protein_backbone_dihedral(this_group,residue_to_rotate,angle,theta,ba
     resid = this_group.resid()
 
     if not backward:
-        first_last_resid = [resid[0],resid[-1]]
+        first_last_resid = [resid[0], resid[-1]]
     else:
-        first_last_resid = [resid[-1],resid[0]]
+        first_last_resid = [resid[-1], resid[0]]
 
-    lcoor = get_this_residue_local_coordinates_protein(this_group,residue_to_rotate,first_last_resid)
+    lcoor = get_this_residue_local_coordinates_protein(this_group, residue_to_rotate, first_last_resid)
 
     q0 = residue_to_rotate
 
-    v=numpy.zeros(3,numpy.float) 
-    tee=numpy.identity(4,numpy.float)
+    v=numpy.zeros(3, numpy.float) 
+    tee=numpy.identity(4, numpy.float)
 
     if(q0 == first_last_resid[0]):
-        n1  = lcoor[0,:]
-        ca1 = lcoor[1,:]
-        c1  = lcoor[2,:]
-        n2  = lcoor[3,:]
+        n1  = lcoor[0, :]
+        ca1 = lcoor[1, :]
+        c1  = lcoor[2, :]
+        n2  = lcoor[3, :]
     elif(q0 == first_last_resid[1]):
-        c0  = lcoor[0,:]
-        n1  = lcoor[1,:]
-        ca1 = lcoor[2,:]
-        c1  = lcoor[3,:]
+        c0  = lcoor[0, :]
+        n1  = lcoor[1, :]
+        ca1 = lcoor[2, :]
+        c1  = lcoor[3, :]
     else:
-        c0  = lcoor[0,:]
-        n1  = lcoor[1,:]
-        ca1 = lcoor[2,:]
-        c1  = lcoor[3,:]
-        n2  = lcoor[4,:]
+        c0  = lcoor[0, :]
+        n1  = lcoor[1, :]
+        ca1 = lcoor[2, :]
+        c1  = lcoor[3, :]
+        n2  = lcoor[4, :]
 
     if(angle == 'phi'):
         v[0]=ca1[0]-n1[0] ; v[1]=ca1[1]-n1[1] ; v[2]=ca1[2]-n1[2]	
@@ -126,7 +154,7 @@ def rotate_protein_backbone_dihedral(this_group,residue_to_rotate,angle,theta,ba
         tee[1][3]=n1[1] 
         tee[2][3]=n1[2]	
 
-        watch_value = get_protein_watch_value(this_group,residue_to_rotate,angle,backward)
+        watch_value = get_protein_watch_value(this_group, residue_to_rotate, angle, backward)
 
     elif(angle == 'psi'):
         v[0]=c1[0]-ca1[0] ; v[1]=c1[1]-ca1[1] ; v[2]=c1[2]-ca1[2]	
@@ -134,7 +162,7 @@ def rotate_protein_backbone_dihedral(this_group,residue_to_rotate,angle,theta,ba
         tee[1][3]=ca1[1] 
         tee[2][3]=ca1[2]	
 
-        watch_value = get_protein_watch_value(this_group,residue_to_rotate,angle,backward)
+        watch_value = get_protein_watch_value(this_group, residue_to_rotate, angle, backward)
 
     ### fix for first_last case
     #### OPEN
@@ -146,7 +174,7 @@ def rotate_protein_backbone_dihedral(this_group,residue_to_rotate,angle,theta,ba
     lv=math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2])
     nv=v/lv 
 
-    R = box_of_balls.get_rotation_matrix(nv,theta)
+    R = box_of_balls.get_rotation_matrix(nv, theta)
 
     itee = numpy.matrix(tee).I
     ir = R*itee
@@ -155,11 +183,11 @@ def rotate_protein_backbone_dihedral(this_group,residue_to_rotate,angle,theta,ba
     natoms=this_group.natoms()
 
     if(backward):
-        qsel = numpy.arange(0,watch_value,1)
+        qsel = numpy.arange(0, watch_value, 1)
     else:
-        qsel = numpy.arange(watch_value+1,natoms)
+        qsel = numpy.arange(watch_value+1, natoms)
 
-#	this_group.write_pdb('group.pdb',frame,'a')
+#	this_group.write_pdb('group.pdb', frame, 'a')
     newa=[] 
 
     for i in xrange(natoms):
@@ -169,7 +197,7 @@ def rotate_protein_backbone_dihedral(this_group,residue_to_rotate,angle,theta,ba
                 far=ta.tolist()
                 far.append(1.0)
                 nta=numpy.array(far)
-                nta.shape=(-1,4)
+                nta.shape=(-1, 4)
                 p=br*numpy.matrix(numpy.transpose(nta)) ; p=numpy.array(p)
                 newa.append(numpy.transpose(p))
         else:
@@ -178,27 +206,27 @@ def rotate_protein_backbone_dihedral(this_group,residue_to_rotate,angle,theta,ba
                 far=ta.tolist()
                 far.append(1.0)
                 nta=numpy.array(far)
-                nta.shape=(-1,4)
+                nta.shape=(-1, 4)
                 p=br*numpy.matrix(numpy.transpose(nta)) ; p=numpy.array(p)
                 newa.append(numpy.transpose(p))
 
     ncoords=numpy.array(newa)
-    ncoords.shape=(-1,4)
-    temp=numpy.take(ncoords,(0,1,2),-1)
+    ncoords.shape=(-1, 4)
+    temp=numpy.take(ncoords, (0, 1, 2), -1)
 
     '''
 	if(angle == 'phi'):
-		dihedral_angle = sasmath.dihedral_angle(lcoor[0,:],lcoor[1,:],lcoor[2,:],lcoor[3,:])
+		dihedral_angle = sasmath.dihedral_angle(lcoor[0, :], lcoor[1, :], lcoor[2, :], lcoor[3, :])
 	elif(angle == 'psi'):
-		dihedral_angle = sasmath.dihedral_angle(lcoor[1,:],lcoor[2,:],lcoor[3,:],lcoor[4,:])
+		dihedral_angle = sasmath.dihedral_angle(lcoor[1, :], lcoor[2, :], lcoor[3, :], lcoor[4, :])
 
-	print 'initial_dihedral_angle = ',dihedral_angle
-	outfile = open('da.txt','a')
+	print 'initial_dihedral_angle = ', dihedral_angle
+	outfile = open('da.txt', 'a')
 	outfile.write("%lf\n" % (dihedral_angle))
 	outfile.close()
 	'''
 
-    totsnz1=numpy.zeros(len(temp)*3,numpy.int32)
+    totsnz1=numpy.zeros(len(temp)*3, numpy.int32)
     lts=0
     for ts in range(len(temp)):
         totsnz1[lts]=(qsel[ts]*3)
@@ -206,80 +234,91 @@ def rotate_protein_backbone_dihedral(this_group,residue_to_rotate,angle,theta,ba
         totsnz1[lts+2]=(qsel[ts]*3)+2
         lts=lts+3
 
-    numpy.put(coor[frame],totsnz1,temp)
+    numpy.put(coor[frame], totsnz1, temp)
 
-    #this_group.write_pdb('group.pdb',frame,'a')
+    #this_group.write_pdb('group.pdb', frame, 'a')
 
-    lcoor = get_this_residue_local_coordinates_protein(this_group,residue_to_rotate,first_last_resid)
+    lcoor = get_this_residue_local_coordinates_protein(this_group, residue_to_rotate, first_last_resid)
 
     '''	
 	if(angle == 'phi'):
-		dihedral_angle = sasmath.dihedral_angle(lcoor[0,:],lcoor[1,:],lcoor[2,:],lcoor[3,:])
+		dihedral_angle = sasmath.dihedral_angle(lcoor[0, :], lcoor[1, :], lcoor[2, :], lcoor[3, :])
 	elif(angle == 'psi'):
-		dihedral_angle = sasmath.dihedral_angle(lcoor[1,:],lcoor[2,:],lcoor[3,:],lcoor[4,:])
+		dihedral_angle = sasmath.dihedral_angle(lcoor[1, :], lcoor[2, :], lcoor[3, :], lcoor[4, :])
 
-	print 'final_dihedral_angle = ',dihedral_angle
+	print 'final_dihedral_angle = ', dihedral_angle
 	'''
 
     return
 
-def rotate_a_group(this_group,rotate_type,residue_to_rotate,angle,theta,backward):	
+def rotate_a_group(this_group, rotate_type, residue_to_rotate, angle, theta, backward):	
 
     if(rotate_type == 'protein_backbone_dihedral'):
-        rotate_protein_backbone_dihedral(this_group,residue_to_rotate,angle,theta,backward)
-    if(rotate_type == 'ds_dna'):
-        # cg the group to rotate
-        # perform the rotation on the residue and following DNA
-        # reverse cg the DNA
-        
-        (d_coor[trial_bead:], xyz[:, trial_bead:], p_coor_rot) = ddmc.beadRotate(
-            d_coor[trial_bead-1:], xyz[:, trial_bead-1:], thetaXYZ,
-            softrotation, p_coor_rot) 
+        rotate_protein_backbone_dihedral(this_group, residue_to_rotate, angle, theta, backward)
 
     return
 
-def hybrid_main(pdb_file_name,number_of_groups,residues_in_groups,rotate_type,group_to_rotate,residue_to_rotate,angle,theta,backward):
+def rotate_a_nucleic_group(this_group, rotate_type, residue_to_rotate, angle, 
+                           theta, backward, residues_in_group, 
+                           segnames_in_group, seg_type_in_group):	
 
-    hybrid = sasmol.SasMol(0)
-    hybrid.read_pdb(pdb_file_name)
+    if(rotate_type == 'protein_backbone_dihedral'):
+        rotate_a_group(this_group, rotate_type, residue_to_rotate, angle, theta, backward)
+    if(rotate_type == 'ds_nucleic'):
+        # cg the group to rotate
+        assert seg_type_in_group[0] == seg_type_in_group[1] == 'nucleic', 'flexible DNA should be first two segments in the group'
+        flex_resids = [residues_in_group[0]]
+        dna_resids = [[residues_in_group[0][0], residues_in_group[0][-1]],
+                      [residues_in_group[1][-1], residues_in_group[1][0]]]
+        dna_segnames = [segnames_in_group[0], segnames_in_group[0]]
+        bp_per_bead = 1
+        pdb_fname = 'junk.pdb'
+        this_group.write_pdb(pdb_fname, 0, 'w')
+        
+        (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, trialbeads, beadgroups, 
+         move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, 
+         cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask, 
+         bp_per_bead_array, pkl_file) = ddmc.get_cg_parameters(flex_resids,
+                dna_resids, dna_segnames, pdb_fname, pdb_fname, bp_per_bead)
 
-    groups,group_masks = make_groups(hybrid,number_of_groups,residues_in_groups)	
+        os.remove(pdb_fname)
+        
+        # determine which bead contains the residue to rotate
+        trial_bead = int(numpy.ceil(residue_to_rotate/float(bp_per_bead)))
+        
+        # perform the rotation on that bead and subsequent DNA
+        d_coor = numpy.copy(cg_dna.coor()[0])
+        thetaXYZ = [theta, 0, 0]
+        p_coor_rot = numpy.zeros((0, 3))
+        
+        (d_coor[trial_bead:], vecXYZ[:, trial_bead:], p_coor_rot) = ddmc.beadRotate(
+            d_coor[trial_bead-1:], vecXYZ[:, trial_bead-1:], thetaXYZ, p_coor_rot) 
 
-    this_group = groups[group_to_rotate]
-
-    itheta = theta
-
-    for i in xrange(100):
-        theta = theta + (5.0 * numpy.pi/180.0)	
-        rotate_a_group(this_group,rotate_type,residue_to_rotate,angle,theta,backward)	
+        # reverse cg the DNA
+        
 
     return
 
 def dna_main(pdb_file_name, number_of_groups, residues_in_groups, 
-             rotate_type, group_to_rotate, residue_to_rotate, angle, theta,
+             rotate_type, group_to_rotate, residue_to_rotate, angle, theta, 
              backward, dna_segnames, dna_resids, bp_per_bead):
 
-
-
     if rotate_type == 'ds_dna':
-        (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, trialbeads, beadgroups, 
-         move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, 
-         cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask,
-         bp_per_bead_array, pkl_file) = ddmc.get_cg_parameters(
-             residues_in_groups, dna_resids, dna_segnames, pdb_file_name, 
-             pdb_file_name, bp_per_bead)
+
 
         # determine which bead has the 'residue_to_rotate' in it
         bead_to_rotate = 9
         
         for i in xrange(100):
             theta = theta + (5.0 * numpy.pi/180.0)    # treating this as thetaX
-            thetaXYZ = [theta,0,0]
+            thetaXYZ = [theta, 0, 0]
             
             # rotate that bead
-            (cg_dna.coor()[0][bead_to_rotate:], vecXYZ[:,bead_to_rotate:], dummy
+            rotate_a_group_2(this_group, rotate_type, residue_to_rotate, angle, theta, backward)	
+            
+            (cg_dna.coor()[0][bead_to_rotate:], vecXYZ[:, bead_to_rotate:], dummy
              ) = ddmc.beadRotate(cg_dna.coor()[0][bead_to_rotate-1:], 
-                                 vecXYZ[:,bead_to_rotate-1:], thetaXYZ,
+                                 vecXYZ[:, bead_to_rotate-1:], thetaXYZ, 
                                  numpy.zeros((0, 3)) ) 
 
             #s rotate_dna_group(this_group, rotate_type, residue_to_rotate, angle, theta, backward)	
@@ -299,44 +338,89 @@ def dna_main(pdb_file_name, number_of_groups, residues_in_groups,
 
     return
 
+def main(pdb_file_name, residues_in_groups, rotate_type, 
+         group_to_rotate, residue_to_rotate, angle, theta, backward, 
+         segnames_in_groups, seg_type_in_groups):
+
+    hybrid = sasmol.SasMol(0)
+    hybrid.read_pdb(pdb_file_name)
+
+    # this assumes that every residue is unique -> separate segs could have same resids
+    # groups, group_masks = make_groups(hybrid, number_of_groups, residues_in_groups)	
+    groups, group_masks = make_complex_groups(hybrid, residues_in_groups, 
+                                              segnames_in_groups)
+    
+    this_group = groups[group_to_rotate]
+
+    this_group.write_pdb('this_group.pdb', 0, 'w')
+    dcd_out = this_group.open_dcd_write('this_group.dcd')
+    
+    for i in xrange(100):
+        theta = theta + (5.0 * numpy.pi/180.0)	
+        if rotate_type == 'protein':
+            rotate_a_group(this_group, rotate_type, residue_to_rotate, angle, 
+                           theta, backward)	
+        elif rotate_type == 'ds_nucleic':
+            residues_in_group = residues_in_groups[group_to_rotate]
+            segnames_in_group = segnames_in_groups[group_to_rotate]
+            seg_type_in_group = seg_type_in_groups[group_to_rotate]
+            rotate_a_nucleic_group(this_group, rotate_type, residue_to_rotate, 
+                                   angle, theta, backward, residues_in_group, 
+                                   segnames_in_group, seg_type_in_group)	
+            
+        this_group.write_dcd_step(dcd_out, 0, i+1)
+    
+    this_group.close_dcd_write(dcd_out)
+
+    return
+
 if __name__ == "__main__":
 
-    # pdb_file_name = 'hybrid.pdb'
-    pdb_file_name = 'new_dsDNA60.pdb'
-    
     group_to_rotate = 1
     residue_to_rotate = 9
+    theta = 5.0 ; theta = theta * numpy.pi/180.0
+
+    #~~ original protein input ~~#
+    pdb_file_name = 'hybrid.pdb'
+    rotate_type = 'protein_backbone_dihedral'
+    number_of_groups = 2
+    residues_in_groups = [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]]
+    segnames_in_groups = [['FAB1', 'LNK1'], ['FAB2', 'LNK2']]
+    seg_type_in_groups = [['other', 'other'], ['other', 'other']]
+    #~~ extra protein specific input ~~#
     # angle = 'phi'
     angle = 'psi'
-    
-    theta = 5.0 ; theta = theta * numpy.pi/180.0
     # backward = False	
     backward = True	
 
-    # rotate_type = 'protein_backbone_dihedral'
-    rotate_type = 'ds_dna'
+    #~~ DNA input ~~#
+    pdb_file_name = 'dna_hybrid.pdb'
+    rotate_type = 'ds_nucleic'
+    number_of_groups = 2
+    residues_in_groups = [[range(1, 26), range(1, 26), [1]], 
+                          [range(1, 26), range(1, 26), [1]]]
+    # dna_resids = [[1, 60], [120, 61]]
+    segnames_in_groups = [['DNA1', 'DNA2', 'FAB2'],
+                          ['DNA3', 'DNA3', 'FAB1']]
+    seg_type_in_groups = [['nucleic', 'nucleic', 'other'],
+                          ['nucleic', 'nucleic', 'other']]
     
-    number_of_groups = 5
-    # residues_in_groups = [[1,2,3,4,5,6], [7,8,9,10,11,12]]
-
+    # #~~ extra DNA specific input ~~#
     # DNA                 chain 1        chain 2 
-    # residues_in_groups = [range(1,6)   + range(116,121), 
-                          # range(6,11)  + range(111,116), 
-                          # range(11,31) + range(91,111),
-                          # range(31,56) + range(66,91), 
-                          # range(56,61) + range(61,66)] #residues from DNA chain 1
-    residues_in_groups = [range(1,6), range(6,11), range(11,31),
-                          range(31,56), range(56,61)]
+    # residues_in_groups = [range(1, 6)   + range(116, 121), 
+                          # range(6, 11)  + range(111, 116), 
+                          # range(11, 31) + range(91, 111), 
+                          # range(31, 56) + range(66, 91), 
+                          # range(56, 61) + range(61, 66)] #residues from DNA chain 1
                           
-    dna_segnames = ['DNA1','DNA2']
-    dna_resids = [[1,60], [120, 61]]
-    bp_per_bead = 1
-    
-    # hybrid_main(pdb_file_name,number_of_groups,residues_in_groups,rotate_type,group_to_rotate,residue_to_rotate,angle,theta,backward)
-    dna_main(pdb_file_name, number_of_groups, residues_in_groups, 
-             rotate_type, group_to_rotate, residue_to_rotate, angle, theta,
-             backward, dna_segnames, dna_resids, bp_per_bead)
-
+    main(pdb_file_name, residues_in_groups, rotate_type, 
+         group_to_rotate, residue_to_rotate, angle, theta, backward, 
+         segnames_in_groups, seg_type_in_groups)
+    # dna_main(pdb_file_name, number_of_groups, residues_in_groups, 
+             # rotate_type, group_to_rotate, residue_to_rotate, angle, theta, 
+             # backward, dna_segnames, dna_resids, bp_per_bead)
+             
+    print '\nFinished\n\m/ >.< \m/'
 
 '''
 ATOM      1 C    MAB     1       0.000   0.000  86.860  0.00  0.00      FAB1 C  
