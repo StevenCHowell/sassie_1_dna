@@ -4,6 +4,7 @@ import numpy
 import sys,os,string,locale,math
 # import sassie.simulate.monte_carlo.ds_dna_monte_carlo.ds_dna_monte_carlo as ddmc
 import dna.ds_dna_monte_carlo as ddmc
+import multiprocessing
 
 sys.path.append('./')
 import sh_box_of_balls as box_of_balls
@@ -260,28 +261,27 @@ def rotate_a_group(this_group, rotate_type, residue_to_rotate, angle, theta, bac
 
 def rotate_a_nucleic_group(this_group, rotate_type, residue_to_rotate, angle, 
                            theta, backward, residues_in_group, 
-                           segnames_in_group, seg_type_in_group):	
+                           segnames_in_group, seg_type_in_group, txtOutput):	
 
     if(rotate_type == 'protein_backbone_dihedral'):
         rotate_a_group(this_group, rotate_type, residue_to_rotate, angle, theta, backward)
     if(rotate_type == 'ds_nucleic'):
+        theta = theta * 180/numpy.pi
         # cg the group to rotate
         assert seg_type_in_group[0] == seg_type_in_group[1] == 'nucleic', 'flexible DNA should be first two segments in the group'
         flex_resids = [residues_in_group[0]]
         dna_resids = [[residues_in_group[0][0], residues_in_group[0][-1]],
                       [residues_in_group[1][-1], residues_in_group[1][0]]]
-        dna_segnames = [segnames_in_group[0], segnames_in_group[0]]
+        dna_segnames = [segnames_in_group[0], segnames_in_group[1]]
         bp_per_bead = 1
-        pdb_fname = 'junk.pdb'
-        this_group.write_pdb(pdb_fname, 0, 'w')
         
         (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, trialbeads, beadgroups, 
          move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, 
          cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask, 
          bp_per_bead_array, pkl_file) = ddmc.get_cg_parameters(flex_resids,
-                dna_resids, dna_segnames, pdb_fname, pdb_fname, bp_per_bead)
+                dna_resids, dna_segnames, 'this_group.dcd', 'this_group.pdb',
+                bp_per_bead, txtOutput, rm_pkl=True)
 
-        os.remove(pdb_fname)
         
         # determine which bead contains the residue to rotate
         trial_bead = int(numpy.ceil(residue_to_rotate/float(bp_per_bead)))
@@ -290,12 +290,17 @@ def rotate_a_nucleic_group(this_group, rotate_type, residue_to_rotate, angle,
         d_coor = numpy.copy(cg_dna.coor()[0])
         thetaXYZ = [theta, 0, 0]
         p_coor_rot = numpy.zeros((0, 3))
-        
+                
         (d_coor[trial_bead:], vecXYZ[:, trial_bead:], p_coor_rot) = ddmc.beadRotate(
             d_coor[trial_bead-1:], vecXYZ[:, trial_bead-1:], thetaXYZ, p_coor_rot) 
+        cg_dna.setCoor(numpy.array([d_coor]))
+        # cg_pro.setCoor(numpy.array([p_coor]))
+        ### NEED TO SET THE RIGID COODINATES HERE
 
         # reverse cg the DNA
-        
+        error = ddmc.recover_aaDNA_model(cg_dna, aa_dna, vecXYZ, all_beads, dna_bead_masks)
+        aa_all.set_coor_using_mask(aa_dna, 0, aa_dna_mask)
+        this_group.setCoor(aa_all.coor())
 
     return
 
@@ -342,6 +347,9 @@ def main(pdb_file_name, residues_in_groups, rotate_type,
          group_to_rotate, residue_to_rotate, angle, theta, backward, 
          segnames_in_groups, seg_type_in_groups):
 
+    txtOutput=multiprocessing.JoinableQueue()
+
+
     hybrid = sasmol.SasMol(0)
     hybrid.read_pdb(pdb_file_name)
 
@@ -354,9 +362,10 @@ def main(pdb_file_name, residues_in_groups, rotate_type,
 
     this_group.write_pdb('this_group.pdb', 0, 'w')
     dcd_out = this_group.open_dcd_write('this_group.dcd')
-    
+
     for i in xrange(100):
         theta = theta + (5.0 * numpy.pi/180.0)	
+        before = numpy.copy(this_group.coor())
         if rotate_type == 'protein':
             rotate_a_group(this_group, rotate_type, residue_to_rotate, angle, 
                            theta, backward)	
@@ -364,10 +373,15 @@ def main(pdb_file_name, residues_in_groups, rotate_type,
             residues_in_group = residues_in_groups[group_to_rotate]
             segnames_in_group = segnames_in_groups[group_to_rotate]
             seg_type_in_group = seg_type_in_groups[group_to_rotate]
+            
             rotate_a_nucleic_group(this_group, rotate_type, residue_to_rotate, 
                                    angle, theta, backward, residues_in_group, 
-                                   segnames_in_group, seg_type_in_group)	
-            
+                                   segnames_in_group, seg_type_in_group, 
+                                   txtOutput)	
+        after = numpy.copy(this_group.coor())
+        diff = after - before
+        print numpy.mean(diff), numpy.max(diff)
+        print 'pause'
         this_group.write_dcd_step(dcd_out, 0, i+1)
     
     this_group.close_dcd_write(dcd_out)
@@ -400,8 +414,8 @@ if __name__ == "__main__":
     residues_in_groups = [[range(1, 26), range(1, 26), [1]], 
                           [range(1, 26), range(1, 26), [1]]]
     # dna_resids = [[1, 60], [120, 61]]
-    segnames_in_groups = [['DNA1', 'DNA2', 'FAB2'],
-                          ['DNA3', 'DNA3', 'FAB1']]
+    segnames_in_groups = [['DNA1', 'DNA2', 'FAB1'],
+                          ['DNA3', 'DNA4', 'FAB2']]
     seg_type_in_groups = [['nucleic', 'nucleic', 'other'],
                           ['nucleic', 'nucleic', 'other']]
     
