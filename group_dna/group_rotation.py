@@ -408,17 +408,17 @@ if __name__ == "__main__":
     # backward = False	
     backward = True	
 
-    # #~~ DNA input ~~#
-    # pdb_file_name = 'dna_hybrid.pdb'
-    # rotate_type = 'ds_nucleic'
-    # number_of_groups = 2
-    # residues_in_groups = [[range(1, 26), range(1, 26), [1]], 
-                          # [range(1, 26), range(1, 26), [1]]]
-    # # dna_resids = [[1, 60], [120, 61]]
-    # segnames_in_groups = [['DNA1', 'DNA2', 'FAB1'],
-                          # ['DNA3', 'DNA4', 'FAB2']]
-    # seg_type_in_groups = [['nucleic', 'nucleic', 'other'],
-                          # ['nucleic', 'nucleic', 'other']]
+    #~~ DNA input ~~#
+    pdb_file_name = 'dna_hybrid.pdb'
+    rotate_type = 'ds_nucleic'
+    number_of_groups = 2
+    residues_in_groups = [[range(1, 26), range(1, 26), [1]], 
+                          [range(1, 26), range(1, 26), [1]]]
+    # dna_resids = [[1, 60], [120, 61]]
+    segnames_in_groups = [['DNA1', 'DNA2', 'FAB1'],
+                          ['DNA3', 'DNA4', 'FAB2']]
+    seg_type_in_groups = [['nucleic', 'nucleic', 'other'],
+                          ['nucleic', 'nucleic', 'other']]
     
     main(pdb_file_name, residues_in_groups, rotate_type, 
          group_to_rotate, residue_to_rotate, angle, theta, backward, 

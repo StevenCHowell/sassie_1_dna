@@ -309,38 +309,45 @@ def make_cg_pro(aa_all, pro_groups, frame=0):
 
 def make_rigid_groups(aa_all, rigid_groups):
     # group the rigid bodies
+    
     print "grouping the rigid bodies..."
     tic = time.time()
-
-    # create a sasmol object for each rigid move group (rigid_groups)
-    rigid_group_masks = []  # masks to separate the cg_protein into NCP groups
-    rigid_group_mols = []
-    (pre, post, btwn) = ("((segname[i]=='", "'))", " or ")
-    for group in rigid_groups:
-        rigid_group_mol = sasmol.SasMol(0)
-        if len(group) > 0:
-            basis_filter = ""
-            for seg in group:
-                basis_filter += pre + seg + post + btwn
-            basis_filter = basis_filter[0:-4]  # remove the last btwn
-            error, rigid_group_mask = aa_all.get_subset_mask(basis_filter)
-            error = aa_all.copy_molecule_using_mask(rigid_group_mol, 
-                                                    rigid_group_mask, 0)
-        else:
-            rigid_group_mask = numpy.zeros(aa_all.natoms(), dtype='int32')
-
-        rigid_group_masks.append(rigid_group_mask)
-        rigid_group_mols.append(rigid_group_mol)
-
-    # combined the protein groups into move groups
-    rigid_move_masks = []
-    for i in xrange(len(rigid_group_masks)):
-        rigid_move_masks.append(numpy.copy(rigid_group_masks[i]))
-    for i in xrange(len(rigid_move_masks)):
-        for j in xrange(i+1, len(rigid_move_masks)):
-            rigid_move_masks[i] += rigid_move_masks[j]
-            
-    rigid_mask = numpy.copy(rigid_move_masks[0])
+    if 0 < len(rigid_groups):
+        # create a sasmol object for each rigid move group (rigid_groups)
+        rigid_group_masks = []  # masks to separate the cg_protein into NCP groups
+        rigid_group_mols = []
+        (pre, post, btwn) = ("((segname[i]=='", "'))", " or ")
+        for group in rigid_groups:
+            rigid_group_mol = sasmol.SasMol(0)
+            if len(group) > 0:
+                basis_filter = ""
+                for seg in group:
+                    basis_filter += pre + seg + post + btwn
+                basis_filter = basis_filter[0:-4]  # remove the last btwn
+                error, rigid_group_mask = aa_all.get_subset_mask(basis_filter)
+                error = aa_all.copy_molecule_using_mask(rigid_group_mol, 
+                                                        rigid_group_mask, 0)
+            else:
+                rigid_group_mask = numpy.zeros(aa_all.natoms(), dtype='int32')
+    
+            rigid_group_masks.append(rigid_group_mask)
+            rigid_group_mols.append(rigid_group_mol)
+    
+        # combined the protein groups into move groups
+        rigid_move_masks = []
+        for i in xrange(len(rigid_group_masks)):
+            rigid_move_masks.append(numpy.copy(rigid_group_masks[i]))
+        for i in xrange(len(rigid_move_masks)):
+            for j in xrange(i+1, len(rigid_move_masks)):
+                rigid_move_masks[i] += rigid_move_masks[j]
+                
+        rigid_mask = numpy.copy(rigid_move_masks[0])
+    else:
+        rigid_mask = numpy.zeros(aa_all.natoms())
+        rigid_group_masks = []
+        rigid_group_mols = []
+        rigid_move_masks = []
+        
     rigid_mol = sasmol.SasMol(0)
     error = aa_all.copy_molecule_using_mask(rigid_mol,rigid_mask, 0)
     toc = time.time() - tic

@@ -41,9 +41,9 @@ if __name__ == "__main__":
     svariables['dna_segnames']          = ('DNA1, DNA2', 'string_array')
     svariables['dna1_resids']           = ('1, 60', 'int_array')
     svariables['dna2_resids']           = ('120, 61', 'int_array')
-    svariables['n_pro_groups']          = ('0', 'int')
-    svariables['pro_group1']            = ('A0, B0, C0, D0, E0, F0, G0, H0', 'string_array')
-    svariables['pro_group2']            = ('', 'string_array') # place holder
+    svariables['n_rigid_groups']        = ('0', 'int')
+    svariables['rigid_group1']          = ('A0, B0, C0, D0, E0, F0, G0, H0', 'string_array')
+    svariables['rigid_group2']          = ('', 'string_array') # place holder
                                                            
 
     # Specialized/Advanced Inputs
