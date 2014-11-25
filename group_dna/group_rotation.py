@@ -273,14 +273,16 @@ def rotate_a_nucleic_group(this_group, rotate_type, residue_to_rotate, angle,
         dna_resids = [[residues_in_group[0][0], residues_in_group[0][-1]],
                       [residues_in_group[1][-1], residues_in_group[1][0]]]
         dna_segnames = [segnames_in_group[0], segnames_in_group[1]]
+        rigid_group = [segnames_in_group[2:]]
+        
         bp_per_bead = 1
         
-        (cg_dna, aa_dna, cg_pro, aa_pro, vecXYZ, trialbeads, beadgroups, 
-         move_masks, all_beads, dna_bead_masks, aa_pgroup_masks, 
-         cg_pgroup_masks, all_proteins, aa_all, aa_pro_mask, aa_dna_mask, 
+        (cg_dna, aa_dna, rigid_mol, vecXYZ, trialbeads, beadgroups, 
+         rigid_move_masks, all_beads, dna_bead_masks, rigid_group_masks, 
+         rigid_group_mols, aa_all, rigid_mask, aa_dna_mask, 
          bp_per_bead_array, pkl_file) = ddmc.get_cg_parameters(flex_resids,
                 dna_resids, dna_segnames, 'this_group.dcd', 'this_group.pdb',
-                bp_per_bead, txtOutput, rm_pkl=True)
+                bp_per_bead, txtOutput, rigid_groups=rigid_group, rm_pkl=True)
 
         
         # determine which bead contains the residue to rotate
@@ -289,17 +291,17 @@ def rotate_a_nucleic_group(this_group, rotate_type, residue_to_rotate, angle,
         # perform the rotation on that bead and subsequent DNA
         d_coor = numpy.copy(cg_dna.coor()[0])
         thetaXYZ = [theta, 0, 0]
-        p_coor_rot = numpy.zeros((0, 3))
+        r_coor = numpy.copy(rigid_mol.coor()[0])
                 
-        (d_coor[trial_bead:], vecXYZ[:, trial_bead:], p_coor_rot) = ddmc.beadRotate(
-            d_coor[trial_bead-1:], vecXYZ[:, trial_bead-1:], thetaXYZ, p_coor_rot) 
+        (d_coor[trial_bead:], vecXYZ[:, trial_bead:], r_coor) = ddmc.beadRotate(
+            d_coor[trial_bead-1:], vecXYZ[:, trial_bead-1:], thetaXYZ, r_coor) 
         cg_dna.setCoor(numpy.array([d_coor]))
-        # cg_pro.setCoor(numpy.array([p_coor]))
-        ### NEED TO SET THE RIGID COODINATES HERE
+        rigid_mol.setCoor(numpy.array([r_coor]))
 
         # reverse cg the DNA
         error = ddmc.recover_aaDNA_model(cg_dna, aa_dna, vecXYZ, all_beads, dna_bead_masks)
         aa_all.set_coor_using_mask(aa_dna, 0, aa_dna_mask)
+        aa_all.set_coor_using_mask(rigid_mol, 0, rigid_mask)
         this_group.setCoor(aa_all.coor())
 
     return
@@ -366,7 +368,7 @@ def main(pdb_file_name, residues_in_groups, rotate_type,
     for i in xrange(100):
         theta = theta + (5.0 * numpy.pi/180.0)	
         before = numpy.copy(this_group.coor())
-        if rotate_type == 'protein':
+        if rotate_type == 'protein_backbone_dihedral':
             rotate_a_group(this_group, rotate_type, residue_to_rotate, angle, 
                            theta, backward)	
         elif rotate_type == 'ds_nucleic':
@@ -381,7 +383,6 @@ def main(pdb_file_name, residues_in_groups, rotate_type,
         after = numpy.copy(this_group.coor())
         diff = after - before
         print numpy.mean(diff), numpy.max(diff)
-        print 'pause'
         this_group.write_dcd_step(dcd_out, 0, i+1)
     
     this_group.close_dcd_write(dcd_out)
@@ -398,7 +399,7 @@ if __name__ == "__main__":
     pdb_file_name = 'hybrid.pdb'
     rotate_type = 'protein_backbone_dihedral'
     number_of_groups = 2
-    residues_in_groups = [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]]
+    residues_in_groups = [[[1], [2, 3, 4, 5, 6]], [[7], [8, 9, 10, 11, 12]]]
     segnames_in_groups = [['FAB1', 'LNK1'], ['FAB2', 'LNK2']]
     seg_type_in_groups = [['other', 'other'], ['other', 'other']]
     #~~ extra protein specific input ~~#
@@ -407,26 +408,18 @@ if __name__ == "__main__":
     # backward = False	
     backward = True	
 
-    #~~ DNA input ~~#
-    pdb_file_name = 'dna_hybrid.pdb'
-    rotate_type = 'ds_nucleic'
-    number_of_groups = 2
-    residues_in_groups = [[range(1, 26), range(1, 26), [1]], 
-                          [range(1, 26), range(1, 26), [1]]]
-    # dna_resids = [[1, 60], [120, 61]]
-    segnames_in_groups = [['DNA1', 'DNA2', 'FAB1'],
-                          ['DNA3', 'DNA4', 'FAB2']]
-    seg_type_in_groups = [['nucleic', 'nucleic', 'other'],
-                          ['nucleic', 'nucleic', 'other']]
+    # #~~ DNA input ~~#
+    # pdb_file_name = 'dna_hybrid.pdb'
+    # rotate_type = 'ds_nucleic'
+    # number_of_groups = 2
+    # residues_in_groups = [[range(1, 26), range(1, 26), [1]], 
+                          # [range(1, 26), range(1, 26), [1]]]
+    # # dna_resids = [[1, 60], [120, 61]]
+    # segnames_in_groups = [['DNA1', 'DNA2', 'FAB1'],
+                          # ['DNA3', 'DNA4', 'FAB2']]
+    # seg_type_in_groups = [['nucleic', 'nucleic', 'other'],
+                          # ['nucleic', 'nucleic', 'other']]
     
-    # #~~ extra DNA specific input ~~#
-    # DNA                 chain 1        chain 2 
-    # residues_in_groups = [range(1, 6)   + range(116, 121), 
-                          # range(6, 11)  + range(111, 116), 
-                          # range(11, 31) + range(91, 111), 
-                          # range(31, 56) + range(66, 91), 
-                          # range(56, 61) + range(61, 66)] #residues from DNA chain 1
-                          
     main(pdb_file_name, residues_in_groups, rotate_type, 
          group_to_rotate, residue_to_rotate, angle, theta, backward, 
          segnames_in_groups, seg_type_in_groups)
