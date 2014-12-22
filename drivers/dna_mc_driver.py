@@ -27,7 +27,7 @@ if __name__ == "__main__":
     svariables['refpdb']  = ('new_dsDNA60.pdb', 'string')
     svariables['psffile'] = ('new_dsDNA60.psf', 'string')
     svariables['ofile']   = ('new_dsDNA60_mc.dcd', 'string')
-    svariables['trials']  = ('250', 'int')
+    svariables['trials']  = ('25', 'int')
     svariables['goback']  = ('50', 'int')
    
     # Molecule Specific Input
@@ -44,7 +44,6 @@ if __name__ == "__main__":
     svariables['n_rigid_groups']        = ('0', 'int')
     svariables['rigid_group1']          = ('A0, B0, C0, D0, E0, F0, G0, H0', 'string_array')
     svariables['rigid_group2']          = ('', 'string_array') # place holder
-                                                           
 
     # Specialized/Advanced Inputs
     svariables['bp_per_bead']   = ('1', 'int') # set to N > 1 to have N base-pairs coarse-grained into 1 bead
@@ -54,11 +53,11 @@ if __name__ == "__main__":
     svariables['temperature']   = ('300', 'float') # may be incorperated for electrostatics
     svariables['debug']         = ('False', 'bool') # 'True' will display debug output
     svariables['write_flex']    = ('False', 'bool') # 'True' will generate a file labeling paird DNA base pairs for all flexible beads (useful for calculating dihedral angles)
-    svariables['keep_cg_files'] = ('False', 'bool') # 'True' will keep the coarse-grain DNA and protein pdb and dcd files
+    svariables['keep_cg_files'] = ('True', 'bool') # 'True' will keep the coarse-grain DNA and protein pdb and dcd files
     svariables['keep_unique']   = ('True', 'bool') # 'False' will keep duplicate structure when move fails
     svariables['rm_pkl']        = ('False', 'bool') # 'True' will remove the coarse-grain pkl file forcing a re-coarse-graining (can be time consuming often necessary)
     svariables['openmm_min']    = ('False', 'bool') # 'True' will remove the coarse-grain pkl file forcing a re-coarse-graining (can be time consuming often necessary)
-                                                 
+
     error, variables = input_filter.type_check_and_convert(svariables)
     vaiables = ddmc.prepare_dna_mc_input(variables)
 

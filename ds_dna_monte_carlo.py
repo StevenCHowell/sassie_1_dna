@@ -147,13 +147,10 @@ def make_cg_dna(dna_segnames, dna_resids, bp_per_bead, aa_all, txtOutput,
         print_failure(message, txtOutput)
     assert s == nbeads, ("\n>>> ERROR!!! fail to create correct number of dummy"
                          " beads: expected %d but made %d\n") %(nbeads, s)
-        
-    error = aa_dna.copy_molecule_using_mask(cg_dna, mask, frame)
 
     # initialize bead coordinates and other variables
     error = aa_dna.copy_molecule_using_mask(cg_dna, mask, frame)
 
-    # initialize bead coordinates and other variables
     cg_coor = numpy.zeros((1, nbeads, 3))
     r1a = resid1[0]
     r2a = resid2[0]
@@ -235,9 +232,18 @@ def make_cg_dna(dna_segnames, dna_resids, bp_per_bead, aa_all, txtOutput,
             
         error = aa_dna.copy_molecule_using_mask(bead, mask, frame)
 
-        # not the best choice > COMs of bps in linear DNA isn't perfectly linear
-        com = bead.calccom(frame)
+        # not the best choice, COMs of bps in linear DNA isn't perfectly linear
+        
+        com = bead.calccom(0)
         cg_coor[0, j, :] = com  # a list of the com coordinate for each bead
+
+        # new method
+        # basis_filter = ("backbone")
+        # error, backbone_mask = bead.get_subset_mask(basis_filter)
+        # test_mol = sasmol.SasMol(0)
+        # error = bead.copy_molecule_using_mask(test_mol, backbone_mask, 0)
+        # com = test_mol.calccom(0)
+        # cg_coor[0, j, :] = com
 
         # calculate atomic coodinates, using the bead com as the origin
         bead.center(0)
@@ -720,19 +726,14 @@ def checkU(coor):
     with real coarse-grained DNA)
     returns the u-vectors and their average magnitude (l)
     '''
-    erLim = 1e-3
-    (r, c) = coor.shape
-    u = coor[1:, :]-coor[:r-1, :]                  # u-vectors between beads
+    u = coor[1:, :]-coor[:-1, :]                  # u-vectors between beads
     lu = numpy.sqrt(u[:, 0]**2+u[:, 1]**2+u[:, 2]**2) # magnitues of u-vectors
-    l = numpy.mean(lu)                                # average distance btwn bead
-
-    #print '\n\ncoor:\n', coor
-    #print 'u-vectors:\n', u
-    #print 'magnitude of u-vectors:\n', lu
-    #print 'average magnitude of u =', l
+    nu = lu.size
+    u = u/lu.reshape(nu,1)   # this make the u-vectors into unit vectors
 
     # Commented this out because it did not work for real DNA because base pairs
     # did not always start evenly spaced apart
+    #s erLim = 1e-3
     #s test = numpy.abs(lu-l) > erLim  # check if any of the l-lengths are different
     #s if test.any():
     #s         print 'ERROR: the beads are not uniformly spaced'
@@ -741,25 +742,21 @@ def checkU(coor):
     #s         # print 'difference =', u[:, 2] - l
     #s         print 'distance =', lu
 
-    return (u, l)
+    return (u, lu)
 
-def energyBend(lpl, u, l):
+def energyBend(lp, u, l):
     '''
     this function finds the E/kT for N beads connected by N-1 rods
-    lpl is the persistence length divided by the rod length: lp/l
+    lp is the persistence length
     u contains the N-1 unit vectors representing each rod
+    l contains the distances between beads
     '''
 
-    (nu, col) = u.shape          # nu = nbeads - 1
-    uk0 = u[:nu-1, :]/l          #; print 'u_k= \n', uk0
-    uk1 = u[1:, :]/l             #; print 'u_k= \n', uk1
-    #s print 'uk0*uk1\n:', uk0*uk1
+    uk0 = u[:-1, :]          #; print 'u_k= \n', uk0
+    uk1 = u[1:, :]             #; print 'u_k= \n', uk1
+    res = numpy.sum((1-numpy.inner(uk0, uk1).diagonal())/l[:-1])  # calculate the sum of their products
 
-    # checkMag(u)       # for debugging
-
-    res = (nu-1) - numpy.sum(uk0*uk1)  # calculate the sum of their products
-
-    return res*lpl
+    return res*lp
 
 def f_energy_wca(w, coor, wca0, trial_bead):
     '''
@@ -877,9 +874,8 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
     d_coor = numpy.copy(cg_dna.coor()[0]) # unique memory for each
     r_coor = numpy.copy(rigid_mol.coor()[0]) # unique memory for each
 
-    (u, l) = checkU(d_coor) # vectors between beads u, and average distance l
+    (u, l) = checkU(d_coor) # vectors, u, and distances, l, between beads
     #s print "(u, l) =", (u, l) # debug info
-    lpl = lp/l  # setup the presistence length paramater
 
     # effective width of the DNA chain
     # 4.6nm for B-Form (taken from: Odijk, T. Phys. Rev. E 2008, 77, 060901(R))
@@ -904,7 +900,7 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
     
     # calculate the energy of the starting positions
     wca0 = numpy.zeros((cg_dna.natoms(),cg_dna.natoms()))
-    Ub0 = energyBend(lpl, u, l)
+    Ub0 = energyBend(lp, u, l)
 
     (Uwca0, wca0) = f_energy_wca(w, d_coor, wca0, 0)
 
@@ -965,7 +961,7 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
 
         # calculate the change in energy (dU) and the boltzman factor (p)
         (u, l) = checkU(d_coor)
-        Ub1 = energyBend(lpl, u, l)
+        Ub1 = energyBend(lp, u, l)
 
         # ~~~~ DNA interaction energy  ~~~~~~#
         (Uwca1, wca1) = f_energy_wca(w, d_coor, wca0, trialbead)
@@ -1086,8 +1082,8 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
                 
                 # reset the reference energy
                 (u, l) = checkU(d_coor) 
+                Ub0 = energyBend(lp, u, l)
                 (Uwca0, wca0) = f_energy_wca(w, d_coor, wca0, 0)
-                Ub0 = energyBend(lpl, u, l)
                 U_T0 =  Ub0 + Uwca0
                 
                 n_from_reload = 0
@@ -1710,7 +1706,7 @@ if __name__ == "__main__":
     svariables['refpdb']  = ('new_dsDNA60.pdb', 'string')
     svariables['psffile'] = ('new_dsDNA60.psf', 'string')
     svariables['ofile']   = ('new_dsDNA60_mc.dcd', 'string')
-    svariables['trials']  = ('250', 'int')
+    svariables['trials']  = ('25', 'int')
     svariables['goback']  = ('50', 'int')
     
     # Molecule Specific Input
@@ -1736,7 +1732,7 @@ if __name__ == "__main__":
     svariables['temperature']   = ('300', 'float') # may be incorperated for electrostatics
     svariables['debug']         = ('False', 'bool') # 'True' will display debug output
     svariables['write_flex']    = ('False', 'bool') # 'True' will generate a file labeling paird DNA base pairs for all flexible beads (useful for calculating dihedral angles)
-    svariables['keep_cg_files'] = ('False', 'bool') # 'True' will keep the coarse-grain DNA and protein pdb and dcd files
+    svariables['keep_cg_files'] = ('True', 'bool') # 'True' will keep the coarse-grain DNA and protein pdb and dcd files
     svariables['keep_unique']   = ('True', 'bool') # 'False' will keep duplicate structure when move fails
     svariables['rm_pkl']        = ('False', 'bool') # 'True' will remove the coarse-grain pkl file forcing a re-coarse-graining (can be time consuming often necessary)
     svariables['openmm_min']    = ('False', 'bool') # 'True' will remove the coarse-grain pkl file forcing a re-coarse-graining (can be time consuming often necessary)    
