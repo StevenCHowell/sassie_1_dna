@@ -750,6 +750,7 @@ def energyBend(lp, u, l):
     lp is the persistence length
     u contains the N-1 unit vectors representing each rod
     l contains the distances between beads
+    ### this has the correted bending energy ###
     '''
 
     uk0 = u[:-1, :]          #; print 'u_k= \n', uk0
@@ -881,7 +882,7 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
     # 4.6nm for B-Form (taken from: Odijk, T. Phys. Rev. E 2008, 77, 060901(R))
     dna_energy_width = {'a': 0, 'b': 46., 'z': 0} # yet to use a, and z type dna
     w = dna_energy_width[dna_type.lower()]
-    if w > l:
+    if w > l.any():
         w = numpy.floor(l)
         if debug:
             print '>>> chain width, w, set to %d Angstroms (so w is < dist btwn beads)' %w
