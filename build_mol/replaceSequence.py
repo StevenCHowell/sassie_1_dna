@@ -85,6 +85,7 @@ for (i, atom) in enumerate(chain1.resid()):
         last_atom = atom
     print atom, '- changing aa.resname()[', i, '] from: ', chain1.resname()[i], 'to: ', dna_seq2pdb[sequence[res-1]]
     chain1.resname()[i] = dna_seq2pdb[sequence[res-1]]
+    chain1.resid()[i] = res
     
 last_atom = 0
 res = 0
@@ -95,9 +96,12 @@ for (i, atom) in enumerate(chain2.resid()):
     compliment = dna_compliment[reverse[res-1]]
     print 'atom: ', atom, ' compliment: ', compliment
     chain2.resname()[i] = dna_seq2pdb[compliment]
+    chain2.resid()[i] = res
     
 chain1.setResname(chain1.resname())
 chain2.setResname(chain2.resname())
+chain1.setResid(chain1.resid())
+chain2.setResid(chain2.resid())
 
 chain1.write_pdb(chain1_out, 0, 'w')
 chain2.write_pdb(chain2_out, 0, 'w')
