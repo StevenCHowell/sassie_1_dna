@@ -71,7 +71,8 @@ def main():
                    'THR': 'T',
                    'TRP': 'W',
                    'TYR': 'Y',
-                   'VAL': 'V'}
+                   'VAL': 'V',
+                   'HSE': 'H'}
     
     dna = {'G': 'G',
            'A': 'A',
