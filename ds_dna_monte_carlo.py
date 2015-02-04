@@ -835,7 +835,7 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
     print 'runname =', runname
 
     if write_flex:
-        write_flex_resids(infile, all_beads, trialbeads, dna_path)
+        write_flex_resids(ofile, all_beads, trialbeads, dna_path)
 
     aa_ofile = dna_path + ofile[:-4] + '_%03d.dcd' % i_loop
     aa_all_dcd_out = aa_all.open_dcd_write(aa_ofile)
@@ -883,11 +883,11 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
     dna_energy_width = {'a': 0, 'b': 46., 'z': 0} # yet to use a, and z type dna
     w = dna_energy_width[dna_type.lower()]
     if w > l.any():
-        w = numpy.floor(l)
+        w = numpy.floor(numpy.min(l))
         if debug:
             print '>>> chain width, w, set to %d Angstroms (so w is < dist btwn beads)' %w
 
-    dna_bead_radius = 4.5
+    dna_bead_radius = 0
 
     #!# this needs to be updated for generic overlap checking
     pro_bead_radius = 1.0 # 2A min seperation of CA atoms in database
