@@ -14,7 +14,8 @@ After running this script, the patches can be pasted into a psfgen file.
 
 import sassie.sasmol.sasmol as sasmol
 import sassie.tools.align2 as a2
-import logging
+import logging, sys
+import numpy as np
 
 def parse():
     ''' Returns arguments in parser'''
@@ -60,9 +61,9 @@ def main():
 
     if aa_move_file[-3:] == 'pdb':
         aa_move.read_pdb(aa_move_file)
-        n_frames = aa_movee.number_of_frames()
+        n_frames = aa_move.number_of_frames()
         in_type = 'pdb'
-    elif aa_movee_file[-3:] == 'dcd':
+    elif aa_move_file[-3:] == 'dcd':
         dcd_file = aa_move.open_dcd_read(path+infile)
         n_frames = dcd_file[2]
         in_type = 'dcd'
@@ -71,11 +72,10 @@ def main():
         print_failure(message, txtOutput) 
         return
 
-    out_type = save_file[-3:]
-    if out_type == 'dcd':
-        dcd_out_file = aa_move.open_dcd_write(path+savefile)
+    if 'dcd' == save_file[-3:]:
+        dcd_out_file = aa_move.open_dcd_write(path+save_file)
 
-    basis_filter = "((segname[i] == '%s') and (name[i] == 'CA') and (resid[i] >= %d) and (resid[i] <= %d))" % (match_segname, match_res_min, match_res_max)
+    basis_filter = "((segname[i] == '%s') and (name[i] == 'CA') and (resid[i] >= %s) and (resid[i] <= %s))" % (match_segname, match_res_min, match_res_max)
 
     error, dest_seg_mask = aa_dest.get_subset_mask(basis_filter)
     error, move_seg_mask = aa_move.get_subset_mask(basis_filter)
@@ -90,19 +90,19 @@ def main():
     for i in xrange(n_frames):
         if in_type == 'dcd':
             aa_move.read_dcd_step(dcd_file, i)
-            aa_move.center(i)                                            # movee m2 to be centered at the origin
+            aa_move.center(i)                                            # move m2 to be centered at the origin
             error, sub_move.coor = aa_move.get_coor_using_mask(0, move_seg_mask)
             sub_move.setCoor(sub_move.coor)
             com_sub_move = sub_move.calccom(0)                            # calculate the center of mass of the subset of m2
-            sub_move.center(0)                                           # movee the subset of m2 to be centered at the origin
+            sub_move.center(0)                                           # move the subset of m2 to be centered at the origin
             coor_sub_move = sub_move.coor()[0]                              # get the new coordinates of the subset of m2
             aa_move.align(i,coor_sub_move,com_sub_move,coor_sub_dest,com_sub_dest) # align m2 using the transformation from sub_m2 to sub_m1
         elif in_type == 'pdb':
-            aa_move.center(i)                                            # movee m2 to be centered at the origin
+            aa_move.center(i)                                            # move m2 to be centered at the origin
             error, sub_move.coor = aa_move.get_coor_using_mask(i, move_seg_mask)
             sub_move.setCoor(sub_move.coor)
             com_sub_move = sub_move.calccom(0)                            # calculate the center of mass of the subset of m2
-            sub_move.center(0)                                           # movee the subset of m2 to be centered at the origin
+            sub_move.center(0)                                           # move the subset of m2 to be centered at the origin
             coor_sub_move = sub_move.coor()[0]                              # get the new coordinates of the subset of m2
             aa_move.align(i,coor_sub_move,com_sub_move,coor_sub_dest,com_sub_dest) # align m2 using the transformation from sub_m2 to sub_m1
 
