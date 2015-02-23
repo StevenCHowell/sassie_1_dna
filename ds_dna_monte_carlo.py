@@ -1257,20 +1257,6 @@ def main(variables):
     #w = 46        # effective measure of dsDNA chain width in A (w = 46A)
     #DOI 10.1021/ma201277e used w=46, lp=530
 
-    if keep_unique:
-        print 'only keeping unique structures'
-    else:
-        print 'keeping all accepted structures'
-
-    # this is currently non-functional
-    # if ARGS.Llp:
-    #     print 'simulating long DNA'
-    #     Llp = ARGS.Llp    # Llp is the length in units of lp: Llp = L/lp
-    #     L = Llp*lp  #
-    #     (cg_dna, vecXYZ) = makeLongDNA(Llp) # use this to make long cgDNA
-    #     all_atom_pdb = '%d_llp' % Llp
-
-
     dna_resids =  []
     rigid_groups =  []
 
@@ -1506,55 +1492,8 @@ def get_cg_parameters(flex_resids, dna_resids, dna_segnames, infile, refpdb,
 
     # if pickle_file exists:
     if os.path.isfile(pkl_file):
-        print 'loading cg parameters for %s from: %s' % (infile, pkl_file)
-        # load pickle_file
-        pkl_in = open(pkl_file, 'rb')
-
-        # coordinate dependent
-        cg_dna            = pickle.load(pkl_in)
-        aa_dna            = pickle.load(pkl_in)
-        rigid_mol         = pickle.load(pkl_in)
-        aa_all            = pickle.load(pkl_in)
-        vecXYZ            = pickle.load(pkl_in)
-
-        # independent of coordinates
-        trialbeads        = pickle.load(pkl_in)
-        beadgroups        = pickle.load(pkl_in)
-
-        rigid_move_masks  = pickle.load(pkl_in)
-        all_beads         = pickle.load(pkl_in)
-        dna_bead_masks    = pickle.load(pkl_in)
-        rigid_group_masks = pickle.load(pkl_in)
-        rigid_group_mols  = pickle.load(pkl_in)
-        rigid_mask        = pickle.load(pkl_in)
-        aa_dna_mask       = pickle.load(pkl_in)
-
-        # input parametrs used to generate these cg-parameters
-        infile_old        = pickle.load(pkl_in)
-        refpdb_old        = pickle.load(pkl_in)
-
-        dna_resids        = pickle.load(pkl_in)
-        dna_segnames      = pickle.load(pkl_in)
-        flex_resids_old   = pickle.load(pkl_in)
-        rigid_groups_old  = pickle.load(pkl_in)
-        bp_per_bead_old   = pickle.load(pkl_in)
-        pkl_in.close()
-
-        # check if input parameters have changes since last using this pdb
-        if rigid_groups != rigid_groups_old or i_loop > 0:
-            do_rigid = True
-            print '>>>Re-coarse-graining the Protein'               
-
-        if bp_per_bead_val0 != bp_per_bead_old[0] or i_loop > 0:
-            do_cg_dna = True
-            print '>>>Re-coarse-graining the DNA'       
-        else:
-            bp_per_bead_array = bp_per_bead_old
-
-        if flex_resids != flex_resids_old:
-            do_dna_flex = True
-            print '>>>Re-identifying flexible residues'       
-
+        # dna_resids, dna_segnames = load_all_pkl(pkl_file, infile, rigid_groups, i_loop, bp_per_bead_val0, flex_resids)
+        dna_resids, dna_segnames = load_masks_pkl(pkl_file, infile, rigid_groups, i_loop, bp_per_bead_val0, flex_resids)
     else:
         do_cg_dna = do_rigid = load_infile = True
         dna_bead_masks = []
@@ -1602,41 +1541,8 @@ def get_cg_parameters(flex_resids, dna_resids, dna_segnames, infile, refpdb,
          ) = make_rigid_groups(aa_all, rigid_groups)
 
     if do_cg_dna or do_rigid or do_dna_flex:
-        print 'cg %s using updated parameters. Result saved to: %s' % (infile,
-                                                                       pkl_file)
-
-        # create the pickle_file for future use
-        pkl_out = open(pkl_file, 'wb')
-
-        # coordinate dependent
-        pickle.dump(cg_dna, pkl_out, -1)
-        pickle.dump(aa_dna, pkl_out, -1)
-        pickle.dump(rigid_mol, pkl_out, -1)
-        pickle.dump(aa_all, pkl_out, -1)
-        pickle.dump(vecXYZ, pkl_out, -1)
-
-        # independent of coordinates
-        pickle.dump(trialbeads, pkl_out, -1)
-        pickle.dump(beadgroups, pkl_out, -1) 
-
-        pickle.dump(rigid_move_masks, pkl_out, -1) 
-        pickle.dump(all_beads, pkl_out, -1) 
-        pickle.dump(dna_bead_masks, pkl_out, -1)
-        pickle.dump(rigid_group_masks, pkl_out, -1)  
-        pickle.dump(rigid_group_mols, pkl_out, -1)  
-        pickle.dump(rigid_mask, pkl_out, -1)  
-        pickle.dump(aa_dna_mask, pkl_out, -1)    
-
-        # input parameters used to get these cg-parameters
-        pickle.dump(infile, pkl_out, -1)        
-        pickle.dump(refpdb, pkl_out, -1)        
-
-        pickle.dump(dna_resids, pkl_out, -1)
-        pickle.dump(dna_segnames, pkl_out, -1)        
-        pickle.dump(flex_resids, pkl_out, -1)
-        pickle.dump(rigid_groups, pkl_out, -1)        
-        pickle.dump(bp_per_bead_array, pkl_out, -1)
-        pkl_out.close()
+        # save_all_pkl(infile, pkl_file, cg_dna, aa_dna, rigid_mol, aa_all, vecXYZ, trialbeads, beadgroups, rigid_move_masks, all_beads, dna_bead_masks, rigid_group_masks, rigid_group_mols, rigid_mask, aa_dna_mask, refpdb, dna_resids, dna_segnames, flex_resids, rigid_groups, bp_per_bead_array)
+        save_masks_pkl(infile, pkl_file, cg_dna, aa_dna, rigid_mol, aa_all, vecXYZ, trialbeads, beadgroups, rigid_move_masks, all_beads, dna_bead_masks, rigid_group_masks, rigid_group_mols, rigid_mask, aa_dna_mask, refpdb, dna_resids, dna_segnames, flex_resids, rigid_groups, bp_per_bead_array)
 
     # this is important for re-aligning the proteins after moving them
     # cg_pro_orig = sasmol.SasMol(0)
@@ -1647,6 +1553,168 @@ def get_cg_parameters(flex_resids, dna_resids, dna_segnames, infile, refpdb,
             rigid_move_masks, all_beads, dna_bead_masks, rigid_group_masks,
             rigid_group_mols, aa_all, rigid_mask, aa_dna_mask, 
             bp_per_bead_array, pkl_file)
+
+def save_all_pkl(infile, pkl_file, cg_dna, aa_dna, rigid_mol, aa_all, vecXYZ, trialbeads, beadgroups, rigid_move_masks, all_beads, dna_bead_masks, rigid_group_masks, rigid_group_mols, rigid_mask, aa_dna_mask, refpdb, dna_resids, dna_segnames, flex_resids, rigid_groups, bp_per_bead_array):
+    print 'cg %s using updated parameters. Result saved to: %s' % (infile,
+                                                                   pkl_file)
+
+    # create the pickle_file for future use
+    pkl_out = open(pkl_file, 'wb')
+
+    # coordinate dependent
+    pickle.dump(cg_dna, pkl_out, -1)
+    pickle.dump(aa_dna, pkl_out, -1)
+    pickle.dump(rigid_mol, pkl_out, -1)
+    pickle.dump(aa_all, pkl_out, -1)
+    pickle.dump(vecXYZ, pkl_out, -1)
+
+    # independent of coordinates
+    pickle.dump(trialbeads, pkl_out, -1)
+    pickle.dump(beadgroups, pkl_out, -1) 
+
+    pickle.dump(rigid_move_masks, pkl_out, -1) 
+    pickle.dump(all_beads, pkl_out, -1) 
+    pickle.dump(dna_bead_masks, pkl_out, -1)
+    pickle.dump(rigid_group_masks, pkl_out, -1)  
+    pickle.dump(rigid_group_mols, pkl_out, -1)  
+    pickle.dump(rigid_mask, pkl_out, -1)  
+    pickle.dump(aa_dna_mask, pkl_out, -1)    
+
+    # input parameters used to get these cg-parameters
+    pickle.dump(infile, pkl_out, -1)        
+    pickle.dump(refpdb, pkl_out, -1)        
+
+    pickle.dump(dna_resids, pkl_out, -1)
+    pickle.dump(dna_segnames, pkl_out, -1)        
+    pickle.dump(flex_resids, pkl_out, -1)
+    pickle.dump(rigid_groups, pkl_out, -1)        
+    pickle.dump(bp_per_bead_array, pkl_out, -1)
+    pkl_out.close()
+
+
+def save_all_pkl(infile, pkl_file, cg_dna, aa_dna, rigid_mol, aa_all, vecXYZ, trialbeads, beadgroups, rigid_move_masks, all_beads, dna_bead_masks, rigid_group_masks, rigid_group_mols, rigid_mask, aa_dna_mask, refpdb, dna_resids, dna_segnames, flex_resids, rigid_groups, bp_per_bead_array):
+    print 'cg %s using updated parameters. Result saved to: %s' % (infile, pkl_file)
+
+    # create the pickle_file for future use
+    pkl_out = open(pkl_file, 'wb')
+
+    # independent of coordinates
+    pickle.dump(trialbeads, pkl_out, -1)
+    pickle.dump(beadgroups, pkl_out, -1) 
+
+    pickle.dump(rigid_move_masks, pkl_out, -1) 
+    pickle.dump(all_beads, pkl_out, -1) 
+    pickle.dump(dna_bead_masks, pkl_out, -1)
+    pickle.dump(rigid_group_masks, pkl_out, -1)  
+    pickle.dump(rigid_group_mols, pkl_out, -1)  
+    pickle.dump(rigid_mask, pkl_out, -1)  
+    pickle.dump(aa_dna_mask, pkl_out, -1)    
+
+    # input parameters used to get these cg-parameters
+    pickle.dump(infile, pkl_out, -1)        
+    pickle.dump(refpdb, pkl_out, -1)        
+
+    pickle.dump(dna_resids, pkl_out, -1)
+    pickle.dump(dna_segnames, pkl_out, -1)        
+    pickle.dump(flex_resids, pkl_out, -1)
+    pickle.dump(rigid_groups, pkl_out, -1)        
+    pickle.dump(bp_per_bead_array, pkl_out, -1)
+    pkl_out.close()
+
+def load_all_pkl(pkl_file, infile, rigid_groups, i_loop, bp_per_bead_val0, flex_resids):
+    print 'loading cg parameters for %s from: %s' % (infile, pkl_file)
+    # load pickle_file
+    pkl_in = open(pkl_file, 'rb')
+
+    # coordinate dependent
+    cg_dna            = pickle.load(pkl_in)
+    aa_dna            = pickle.load(pkl_in)
+    rigid_mol         = pickle.load(pkl_in)
+    aa_all            = pickle.load(pkl_in)
+    vecXYZ            = pickle.load(pkl_in)
+
+    # independent of coordinates
+    trialbeads        = pickle.load(pkl_in)
+    beadgroups        = pickle.load(pkl_in)
+
+    rigid_move_masks  = pickle.load(pkl_in)
+    all_beads         = pickle.load(pkl_in)
+    dna_bead_masks    = pickle.load(pkl_in)
+    rigid_group_masks = pickle.load(pkl_in)
+    rigid_group_mols  = pickle.load(pkl_in)
+    rigid_mask        = pickle.load(pkl_in)
+    aa_dna_mask       = pickle.load(pkl_in)
+
+    # input parametrs used to generate these cg-parameters
+    infile_old        = pickle.load(pkl_in)
+    refpdb_old        = pickle.load(pkl_in)
+
+    dna_resids        = pickle.load(pkl_in)
+    dna_segnames      = pickle.load(pkl_in)
+    flex_resids_old   = pickle.load(pkl_in)
+    rigid_groups_old  = pickle.load(pkl_in)
+    bp_per_bead_old   = pickle.load(pkl_in)
+    pkl_in.close()
+
+    # check if input parameters have changes since last using this pdb
+    if rigid_groups != rigid_groups_old or i_loop > 0:
+        do_rigid = True
+        print '>>>Re-coarse-graining the Protein'               
+
+    if bp_per_bead_val0 != bp_per_bead_old[0] or i_loop > 0:
+        do_cg_dna = True
+        print '>>>Re-coarse-graining the DNA'       
+    else:
+        bp_per_bead_array = bp_per_bead_old
+
+    if flex_resids != flex_resids_old:
+        do_dna_flex = True
+        print '>>>Re-identifying flexible residues'       
+    return dna_resids, dna_segnames
+
+def load_masks_pkl(pkl_file, infile, rigid_groups, i_loop, bp_per_bead_val0, flex_resids):
+    print 'loading cg parameters for %s from: %s' % (infile, pkl_file)
+    # load pickle_file
+    pkl_in = open(pkl_file, 'rb')
+
+    # independent of coordinates
+    trialbeads        = pickle.load(pkl_in)
+    beadgroups        = pickle.load(pkl_in)
+
+    rigid_move_masks  = pickle.load(pkl_in)
+    all_beads         = pickle.load(pkl_in)
+    dna_bead_masks    = pickle.load(pkl_in)
+    rigid_group_masks = pickle.load(pkl_in)
+    rigid_group_mols  = pickle.load(pkl_in)
+    rigid_mask        = pickle.load(pkl_in)
+    aa_dna_mask       = pickle.load(pkl_in)
+
+    # input parametrs used to generate these cg-parameters
+    infile_old        = pickle.load(pkl_in)
+    refpdb_old        = pickle.load(pkl_in)
+
+    dna_resids        = pickle.load(pkl_in)
+    dna_segnames      = pickle.load(pkl_in)
+    flex_resids_old   = pickle.load(pkl_in)
+    rigid_groups_old  = pickle.load(pkl_in)
+    bp_per_bead_old   = pickle.load(pkl_in)
+    pkl_in.close()
+
+    # check if input parameters have changes since last using this pdb
+    if rigid_groups != rigid_groups_old or i_loop > 0:
+        do_rigid = True
+        print '>>>Re-coarse-graining the Protein'               
+
+    if bp_per_bead_val0 != bp_per_bead_old[0] or i_loop > 0:
+        do_cg_dna = True
+        print '>>>Re-coarse-graining the DNA'       
+    else:
+        bp_per_bead_array = bp_per_bead_old
+
+    if flex_resids != flex_resids_old:
+        do_dna_flex = True
+        print '>>>Re-identifying flexible residues'       
+    return dna_resids, dna_segnames
 
 def prepare_dna_mc_input(variables):
     # ~~~~Generate 'flex_resid' list~~~~
