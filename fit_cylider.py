@@ -85,8 +85,9 @@ def transform_coor(coor3, vector, origin):
     Rxz = np.dot(Rx,Rz)
     R = np.eye(4)
     R[:3, :3] = Rxz
-    R[:3,3] = origin
-        
+    R[3,:3] = origin
+    
+    
     # R would rotate V to [0, 0, 1], we want the reverse of that: V.T
     result = np.dot(coor4,R)
 
@@ -132,7 +133,7 @@ def show_cylinder(coor, params):
     
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    
+
     # xs = [X0, X0+Vx]
     # ys = [Y0, Y0+Vy]
     # zs = [Z0, Z0+Vz]
@@ -142,21 +143,28 @@ def show_cylinder(coor, params):
     zs = array*Vz + Z0
     ax.plot(xs, ys, zs, label='cylinder axis')
     
-    ax.scatter(coor[:,0], coor[:,1], coor[:,2], label='data points')
+    ax.plot(coor[:,0], coor[:,1], coor[:,2], 'o', label="C1' coordinates")
+
+    ax.scatter(X0, Y0, Z0, color='blue', label='origin', marker='x')
     
     # X,Y,Z = cylinder(np.ones((10,1))*R, 20)
-    X_raw, Y_raw, Z_raw = cylinder(R, 20)
     vector = np.array([Vx, Vy, Vz])
     origin = np.array([X0, Y0, Z0])
+    X_raw, Y_raw, Z_raw = cylinder(np.ones((10,1))*R, 20)
+    h = 40
+    Z_raw = (Z_raw-0.5) * h
     X, Y, Z = transform_surf(X_raw, Y_raw, Z_raw, vector, origin)
+    ax.plot_wireframe(X,Y,Z, label='cylinder', color='orange', lw='2')
+
+    # ax.plot_wireframe(X_raw,Y_raw,Z_raw, label='cylinder', color='red')
+    # ax.scatter(0, 0, 0, color='red', label='data points', marker='x')
     
-    ax.plot_wireframe(X,Y,Z, label='cylinder')
     
-    ax.legend()
     ax.set_xlabel('X Label')
     ax.set_ylabel('Y Label')
     ax.set_zlabel('Z Label')
-    
+    plt.axis('equal')
+    plt.legend(loc='upper left', numpoints=1)
     plt.show()
     
     print '\m/ >.< \m/'
