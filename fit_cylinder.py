@@ -59,11 +59,37 @@ def vector_from_cylinder_axis(coor, R, X0, Y0, Vx, Vy):
     
     return D
 
-def main(coor):
+def main(coor, dyad_dna_resids, dyad_dna_id, nucleosome):
     ideal = np.zeros(len(coor))
     R = 42
     guess = (R, 0, 0, 1, 1)
     opt_params, cov_params= curve_fit(cylinder_distances_from_R, coor, ideal, guess)
+    
+    [R, X0, Y0, Vx, Vy] = opt_params
+    Z0 = 0
+    Vz = 1
+    cyl_origin = np.array([X0, Y0, Z0])
+    z = np.array([Vx, Vy, Vz])
+    z_hat = z/np.sqrt(np.dot(z,z))
+    
+    dyad_dna_resids = [0, 0]
+    dyad_dna_id = ['I', 'J']
+    dyad_origin, dyad_axes, dyad_mol = get_dna_bp_and_axes(dyad_dna_resids, dyad_dna_id, nuclecosome)
+
+    ## calculate distance from dyad_orign to the axis
+    x = vector_from_cylinder_axis(dyad_origin, opt_params[0], opt_params[1], opt_params[2], opt_params[3], opt_params[4])
+    nuc_origin = dyad_origin - x
+
+    # xp0 = vector_from_cylinder_axis(dyad_origin, params[0], params[1], params[2], params[3], params[4])
+    # xp1 = xp0-origin
+    # x = xp1 - np.dot(xp1, z_hat)*z_hat #subtract from x the projection along z_hat    
+    
+    x = x.reshape(3)
+    x_hat = x/np.sqrt(np.dot(x,x))
+    
+    y_hat = np.cross(z_hat,x_hat)
+    nuc_axes = np.array([x_hat, y_hat, z_hat])
+    
     return opt_params
 
 def transform_coor(coor3, vector, origin):
@@ -309,40 +335,17 @@ def get_dna_bp_and_axes(dna_resids, dna_ids, dna_mol):
 if __name__ == '__main__':
     
     pdb_file = '1KX5tailfold_167bp.pdb'
-    nuc = sasmol.SasMol(0)
-    nuc.read_pdb(pdb_file)
+    nuclecosome = sasmol.SasMol(0)
+    nuclecosome.read_pdb(pdb_file)
     basis_filter = ' ( chain[i] ==  "I"  or chain[i] ==  "J"  ) and name[i] ==  "C1\'" '
-    error, c1p_mask = nuc.get_subset_mask(basis_filter)
-    error, coor = nuc.get_coor_using_mask(0, c1p_mask)
+    error, c1p_mask = nuclecosome.get_subset_mask(basis_filter)
+    error, coor = nuclecosome.get_coor_using_mask(0, c1p_mask)
 
     ## fit a cylinder
-    params = main(coor[0]) 
-    [R, X0, Y0, Vx, Vy] = params
-    Z0 = 0
-    Vz = 1
-    cyl_origin = np.array([X0, Y0, Z0])
-    z = np.array([Vx, Vy, Vz])
-    z_hat = z/np.sqrt(np.dot(z,z))
-    
-    dyad_dna_resids = [0, 0]
-    dyad_dna_id = ['I', 'J']
-    dyad_origin, dyad_axes, dyad_mol = get_dna_bp_and_axes(dyad_dna_resids, dyad_dna_id, nuc)
+    opt_params = main(coor[0]) 
 
-    ## calculate distance from dyad_orign to the axis
-    x = vector_from_cylinder_axis(dyad_origin, params[0], params[1], params[2], params[3], params[4])
-    nuc_origin = dyad_origin - x
-
-    # xp0 = vector_from_cylinder_axis(dyad_origin, params[0], params[1], params[2], params[3], params[4])
-    # xp1 = xp0-origin
-    # x = xp1 - np.dot(xp1, z_hat)*z_hat #subtract from x the projection along z_hat    
-    
-    x = x.reshape(3)
-    x_hat = x/np.sqrt(np.dot(x,x))
-    
-    y_hat = np.cross(z_hat,x_hat)
-    nuc_axes = np.array([x_hat, y_hat, z_hat])
     ## display the fit results
-    show_cylinder(coor[0], params, nuc_origin, nuc_axes, dyad_origin)
+    show_cylinder(coor[0], opt_params, nuc_origin, nuc_axes, dyad_origin)
 
     # coor = np.array([[0,0,1]])    
     # vector = np.array([params[3], params[4], 1])
