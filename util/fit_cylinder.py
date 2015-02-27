@@ -290,16 +290,16 @@ def cylinder(r,n=20):
     
     return x,y,z
 
-def get_dna_bp_and_axes(dna_resids, dna_ids, dna_mol):
-    bp_filter = '( chain[i] == "%s" and resid[i] == %d ) or ( chain[i] == "%s" and resid[i] == %d )' % (dna_ids[0], dna_resids[0], dna_ids[1], dna_resids[1])
+def get_dna_bp_and_axes(dna_resids, dna_ids, dna_mol, dna_id_type='segname'):
+    bp_filter = '( %s[i] == "%s" and resid[i] == %d ) or ( %s[i] == "%s" and resid[i] == %d )' % (dna_id_type, dna_ids[0], dna_resids[0], dna_id_type, dna_ids[1], dna_resids[1])
     error, bp_mask = dna_mol.get_subset_mask(bp_filter)
     bp_mol = sasmol.SasMol(0)
     error = dna_mol.copy_molecule_using_mask(bp_mol, bp_mask, 0)
-    bp_origin, bp_axes = get_dna_bp_reference_frame(dna_ids, bp_mol, 'chain')
+    bp_origin, bp_axes = get_dna_bp_reference_frame(dna_ids, bp_mol, dna_id_type)
 
     return bp_origin, bp_axes, bp_mol
 
-def get_ncp_origin_and_axes(ncp_c1p_filter, dyad_dna_resids, dyad_dna_id, ncp, plt_res=False):
+def get_ncp_origin_and_axes(ncp_c1p_filter, dyad_dna_resids, dyad_dna_id, ncp, dna_id_type='segname', plt_res=False):
     error, c1p_mask = ncp.get_subset_mask(ncp_c1p_filter)
     error, coor = ncp.get_coor_using_mask(0, c1p_mask)
     coor = coor[0]
@@ -321,7 +321,7 @@ def get_ncp_origin_and_axes(ncp_c1p_filter, dyad_dna_resids, dyad_dna_id, ncp, p
     z = np.array([Vx, Vy, Vz])
     z_hat = z/np.sqrt(np.dot(z,z))
     
-    dyad_origin, dyad_axes, dyad_mol = get_dna_bp_and_axes(dyad_dna_resids, dyad_dna_id, ncp)
+    dyad_origin, dyad_axes, dyad_mol = get_dna_bp_and_axes(dyad_dna_resids, dyad_dna_id, ncp, dna_id_type)
 
     ## calculate distance from dyad_orign to the axis
     x = vector_from_cylinder_axis(dyad_origin, opt_params[0], opt_params[1], opt_params[2], opt_params[3], opt_params[4])
@@ -345,7 +345,7 @@ def get_ncp_origin_and_axes(ncp_c1p_filter, dyad_dna_resids, dyad_dna_id, ncp, p
 
 if __name__ == '__main__':
     import time
-    pdb_file = '1KX5tailfold_167bp.pdb'
+    pdb_file = '../1KX5tailfold_167bp.pdb'
     ncp = sasmol.SasMol(0)
     ncp.read_pdb(pdb_file)
     basis_filter = ' ( chain[i] ==  "I"  or chain[i] ==  "J"  ) and name[i] ==  "C1\'" '
@@ -353,7 +353,7 @@ if __name__ == '__main__':
     dyad_dna_resids = [0, 0]
     dyad_dna_id = ['I', 'J']
     tic = time.time()
-    ncp_origin, ncp_axes = get_ncp_origin_and_axes(basis_filter, dyad_dna_resids, dyad_dna_id, ncp) 
+    ncp_origin, ncp_axes = get_ncp_origin_and_axes(basis_filter, dyad_dna_resids, dyad_dna_id, ncp, 'chain', True) 
     toc = time.time() - tic
     print 'determining the NCP origin and axes took %0.3f s' %toc
     print 'ncp_origin =', ncp_origin

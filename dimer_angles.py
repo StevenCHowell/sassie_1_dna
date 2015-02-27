@@ -16,8 +16,10 @@ import os.path as op
 import logging
 LOGGER = logging.getLogger(__name__) #add module name manually
 
-import sassie_1_na.fit_cylinder as fit_cyl
-
+import sassie.sasmol.sasmol as sasmol
+import sassie_1_na.util.fit_cylinder as fit_cylinder
+import sassie_1_na.util.basis_to_python as basis_to_python
+import numpy as np
 
 class MainError(Exception):
     pass
@@ -41,18 +43,35 @@ if __name__ == '__main__':
     dcd_path = op.join(dcd_dir, dcd_file)
 
     pdb_file = 'dimer_half_trun.pdb'
-    pdb_dir  = '/home/schowell/data/myData/sassieRuns/dimer/flex25/run2'
-    pdb_path = op.join(pdb_dir, pdb_path)
+    pdb_dir  = '/home/schowell/data/myData/sassieRuns/dimer/flex25'
+    pdb_path = op.join(pdb_dir, pdb_file)
     
-    # load the pdb
-    # create the ncp filters
+    # load the pdb and open the pdb for reading 
+    dimer = sasmol.SasMol(0)
+    dimer.read_pdb(pdb_path)
+    dimer_dcdfile = dimer.open_dcd_read(dcd_path)
+    
+    # create the ncps
+    ncp1_vmd_basis = ("((segname DNA1 and resid >= 15  and resid <= 161) or "
+                      " (segname DNA2 and resid >= 193 and resid <= 339) ) and "
+                      "name C1'")
+    ncp1_basis = basis_to_python.parse_basis(ncp1_vmd_basis)
+
+    ncp2_vmd_basis = ("((segname DNA1 and resid >= 182 and resid <= 328) or "
+                      " (segname DNA2 and resid >= 26  and resid <= 172) )and "
+                      "name C1'")
+    ncp2_basis = basis_to_python.parse_basis(ncp2_vmd_basis)
+
+    ncp1_dyad_resids = [88, 266]
+    ncp2_dyad_resids = [255, 99]
+    dna_ids = ['DNA1', 'DNA2']
     
     for frame in xrange(20):
         # load the coordinates from the dcd frame
+        dimer.read_dcd_step(dimer_dcdfile, frame)
+        ncp1_origin, ncp1_axes = fit_cylinder.get_ncp_origin_and_axes(ncp1_basis, ncp1_dyad_resids, dna_ids, dimer, 'segname', True)
         
-        ncp1_origin, ncp1_axes = fit_cyl.get_ncp_origin_and_axes(ncp_c1p_filter, dyad_dna_resids, dyad_dna_id, ncp)
-        
-        ncp2_origin, ncp2_axes = fit_cyl.get_ncp_origin_and_axes(ncp_c1p_filter, dyad_dna_resids, dyad_dna_id, ncp)
+        ncp2_origin, ncp2_axes = fit_cylinder.get_ncp_origin_and_axes(ncp2_basis, ncp2_dyad_resids, dna_ids, dimer, 'segname', True)
 
         #get angles between NCPs
 
