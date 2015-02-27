@@ -72,7 +72,7 @@ if __name__ == '__main__':
     all_ncp1_axes = []
     all_ncp2_origins = []
     all_ncp2_axes = []
-    for frame in xrange(20):
+    for frame in xrange(5):
         # load the coordinates from the dcd frame
         dimer.read_dcd_step(dimer_dcdfile, frame)
         ncp1_origin, ncp1_axes = fit_cylinder.get_ncp_origin_and_axes(ncp1_c1p_mask, ncp1_dyad_resids, dna_ids, dimer, 'segname')
@@ -84,9 +84,9 @@ if __name__ == '__main__':
         all_ncp2_axes.append(ncp2_axes)
 
     all_ncp1_axes = np.array(all_ncp1_axes)
-    all_ncp1_origins = np.array(all_ncp1_axes)
+    all_ncp1_origins = np.array(all_ncp1_origins)
     all_ncp2_axes = np.array(all_ncp2_axes)
-    all_ncp2_origins = np.array(all_ncp2_axes)
+    all_ncp2_origins = np.array(all_ncp2_origins)
     #get angles between NCPs
 
     #get the X2 from the file
