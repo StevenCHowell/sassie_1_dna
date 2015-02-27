@@ -132,7 +132,7 @@ def transform_surf(X, Y, Z, vector, origin):
 
     return X_new, Y_new, Z_new
 
-def show_cylinder(coor, params, nuc_origin, nuc_axes, dyad_origin):
+def show_cylinder(coor, params, nuc_origin, nuc_axes, dyad_origin, dyad_axes):
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
     
@@ -174,18 +174,18 @@ def show_cylinder(coor, params, nuc_origin, nuc_axes, dyad_origin):
     ax.plot(nuc_origin[:,0], nuc_origin[:,1], nuc_origin[:,2], 'gs', label='nucleosome origin') 
     styles = ['r-','g-','b-']
     labels = ['X-axis', 'Y-axis', 'Z-axis']
-    for (i, axes) in enumerate(nuc_axes):
-        axes_vec = np.concatenate((nuc_origin, axes*10 + nuc_origin), axis=0)
+    for (i, axis) in enumerate(nuc_axes):
+        axes_vec = np.concatenate((nuc_origin, axis*10 + nuc_origin), axis=0)
         ax.plot(axes_vec[:,0], axes_vec[:,1], axes_vec[:,2], styles[i], label=labels[i])
 
     dyad_origin = dyad_origin.reshape(1,3)
     ax.plot(dyad_origin[:,0], dyad_origin[:,1], dyad_origin[:,2], 'rs', label='dyad origin')
 
-    # styles = ['r-','g-','b-']
-    # labels = ['dyad X-axis', 'dyad Y-axis', 'dyad Z-axis']
-    # for (i, axes) in enumerate(orientations):
-        # dyad_axes = np.concatenate((dyad_origin, axes*10 + dyad_origin), axis=0)
-        # ax.plot(dyad_axes[:,0], dyad_axes[:,1], dyad_axes[:,2], styles[i], label=labels[i])
+    styles = ['r-','g-','b-']
+    labels = ['dyad X-axis', 'dyad Y-axis', 'dyad Z-axis']
+    for (i, axis) in enumerate(dyad_axes):
+        dyad_axis = np.concatenate((dyad_origin, axis*10 + dyad_origin), axis=0)
+        ax.plot(dyad_axis[:,0], dyad_axis[:,1], dyad_axis[:,2], styles[i], label=labels[i])
     # dyad = dyad_mol.coor()[0]
     # ax.plot(dyad[:,0], dyad[:,1], dyad[:,2], 'ro', label='dyad bp')
     
@@ -299,20 +299,25 @@ def get_dna_bp_and_axes(dna_resids, dna_ids, dna_mol, dna_id_type='segname'):
 
     return bp_origin, bp_axes, bp_mol
 
-def get_ncp_origin_and_axes(ncp_c1p_filter, dyad_dna_resids, dyad_dna_id, ncp, dna_id_type='segname', plt_res=False):
-    error, c1p_mask = ncp.get_subset_mask(ncp_c1p_filter)
-    error, coor = ncp.get_coor_using_mask(0, c1p_mask)
+def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_dna_resids, dyad_dna_id, ncp, dna_id_type='segname', debug=False):
+    dyad_origin, dyad_axes, dyad_mol = get_dna_bp_and_axes(dyad_dna_resids, dyad_dna_id, ncp, dna_id_type)
+    dyad_y_axis = dyad_axes[1,:]/dyad_axes[1,2]
+
+    error, coor = ncp.get_coor_using_mask(0, ncp_c1p_mask)
     coor = coor[0]
     ideal = np.zeros(len(coor))
-    R = 42
-    guess = (R, 0, 0, 1, 1)
+    R = 42.04
+    # use the dyad_z_axis as the guess for the ncp_z_axis
+    guess = (R, 0, 0, dyad_y_axis[0], dyad_y_axis[1]) # (R, X0, Y0, Vx, Vy)
     
     ## fit a cylinder
-    import time
-    tic = time.time()
+    if debug:
+        import time
+        tic = time.time()
     opt_params, cov_params= curve_fit(cylinder_distances_from_R, coor, ideal, guess)
-    toc = time.time() - tic
-    print 'fitting a cylinder to the NCP took %0.3f s' %toc
+    if debug:
+        toc = time.time() - tic
+        print 'fitting a cylinder to the NCP took %0.3f s' %toc
     
     [R, X0, Y0, Vx, Vy] = opt_params
     Z0 = 0
@@ -321,8 +326,6 @@ def get_ncp_origin_and_axes(ncp_c1p_filter, dyad_dna_resids, dyad_dna_id, ncp, d
     z = np.array([Vx, Vy, Vz])
     z_hat = z/np.sqrt(np.dot(z,z))
     
-    dyad_origin, dyad_axes, dyad_mol = get_dna_bp_and_axes(dyad_dna_resids, dyad_dna_id, ncp, dna_id_type)
-
     ## calculate distance from dyad_orign to the axis
     x = vector_from_cylinder_axis(dyad_origin, opt_params[0], opt_params[1], opt_params[2], opt_params[3], opt_params[4])
     ncp_origin = dyad_origin - x
@@ -337,9 +340,9 @@ def get_ncp_origin_and_axes(ncp_c1p_filter, dyad_dna_resids, dyad_dna_id, ncp, d
     y_hat = np.cross(z_hat,x_hat)
     ncp_axes = np.array([x_hat, y_hat, z_hat])
 
-    if plt_res:
+    if debug:
         ## display the fit results
-        show_cylinder(coor, opt_params, ncp_origin, ncp_axes, dyad_origin)
+        show_cylinder(coor, opt_params, ncp_origin, ncp_axes, dyad_origin, dyad_axes)
     
     return ncp_origin, ncp_axes
 
@@ -349,11 +352,11 @@ if __name__ == '__main__':
     ncp = sasmol.SasMol(0)
     ncp.read_pdb(pdb_file)
     basis_filter = ' ( chain[i] ==  "I"  or chain[i] ==  "J"  ) and name[i] ==  "C1\'" '
-
+    error, c1p_mask = ncp.get_subset_mask(basis_filter)
     dyad_dna_resids = [0, 0]
     dyad_dna_id = ['I', 'J']
     tic = time.time()
-    ncp_origin, ncp_axes = get_ncp_origin_and_axes(basis_filter, dyad_dna_resids, dyad_dna_id, ncp, 'chain', True) 
+    ncp_origin, ncp_axes = get_ncp_origin_and_axes(c1p_mask, dyad_dna_resids, dyad_dna_id, ncp, 'chain', True) 
     toc = time.time() - tic
     print 'determining the NCP origin and axes took %0.3f s' %toc
     print 'ncp_origin =', ncp_origin

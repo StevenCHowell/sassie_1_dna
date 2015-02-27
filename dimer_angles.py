@@ -56,24 +56,38 @@ if __name__ == '__main__':
                       " (segname DNA2 and resid >= 193 and resid <= 339) ) and "
                       "name C1'")
     ncp1_basis = basis_to_python.parse_basis(ncp1_vmd_basis)
+    error, ncp1_c1p_mask = dimer.get_subset_mask(ncp1_basis)
 
     ncp2_vmd_basis = ("((segname DNA1 and resid >= 182 and resid <= 328) or "
                       " (segname DNA2 and resid >= 26  and resid <= 172) )and "
                       "name C1'")
     ncp2_basis = basis_to_python.parse_basis(ncp2_vmd_basis)
+    error, ncp2_c1p_mask = dimer.get_subset_mask(ncp2_basis)
 
     ncp1_dyad_resids = [88, 266]
     ncp2_dyad_resids = [255, 99]
     dna_ids = ['DNA1', 'DNA2']
     
+    all_ncp1_origins = []
+    all_ncp1_axes = []
+    all_ncp2_origins = []
+    all_ncp2_axes = []
     for frame in xrange(20):
         # load the coordinates from the dcd frame
         dimer.read_dcd_step(dimer_dcdfile, frame)
-        ncp1_origin, ncp1_axes = fit_cylinder.get_ncp_origin_and_axes(ncp1_basis, ncp1_dyad_resids, dna_ids, dimer, 'segname', True)
+        ncp1_origin, ncp1_axes = fit_cylinder.get_ncp_origin_and_axes(ncp1_c1p_mask, ncp1_dyad_resids, dna_ids, dimer, 'segname')
+        all_ncp1_origins.append(ncp1_origin)
+        all_ncp1_axes.append(ncp1_axes)
         
-        ncp2_origin, ncp2_axes = fit_cylinder.get_ncp_origin_and_axes(ncp2_basis, ncp2_dyad_resids, dna_ids, dimer, 'segname', True)
+        ncp2_origin, ncp2_axes = fit_cylinder.get_ncp_origin_and_axes(ncp2_c1p_mask, ncp2_dyad_resids, dna_ids, dimer, 'segname')
+        all_ncp2_origins.append(ncp2_origin)
+        all_ncp2_axes.append(ncp2_axes)
 
-        #get angles between NCPs
+    all_ncp1_axes = np.array(all_ncp1_axes)
+    all_ncp1_origins = np.array(all_ncp1_axes)
+    all_ncp2_axes = np.array(all_ncp2_axes)
+    all_ncp2_origins = np.array(all_ncp2_axes)
+    #get angles between NCPs
 
     #get the X2 from the file
 
