@@ -37,8 +37,9 @@ def cylinder_distances_from_R(coor, R, X0, Y0, Vx, Vy):
     Uz = Vz/length
     U = np.array([Ux,Uy,Uz])
     
-    A = np.dot((coor-origin),U)              # component of array from origin to point along axis
-    D = (coor-origin)-np.outer(A,U)          # vectors from axis to point
+    coor_cyl = coor-origin
+    A = np.dot(coor_cyl, U)                  # component of array from origin to point along axis
+    D = coor_cyl-np.outer(A,U)               # vectors from axis to point
     dist = np.sqrt(np.square(D).sum(axis=1)) # distance from axis to point
     
     return dist-R

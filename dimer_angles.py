@@ -20,6 +20,9 @@ import sassie.sasmol.sasmol as sasmol
 import sassie_1_na.util.fit_cylinder as fit_cylinder
 import sassie_1_na.util.basis_to_python as basis_to_python
 import numpy as np
+from numpy.core.umath_tests import inner1d
+import matplotlib.pyplot as plt
+# from mpl_toolkits.mplot3d import Axes3D
 
 class MainError(Exception):
     pass
@@ -68,27 +71,52 @@ if __name__ == '__main__':
     ncp2_dyad_resids = [255, 99]
     dna_ids = ['DNA1', 'DNA2']
     
+    aligned = True
+    
     all_ncp1_origins = []
     all_ncp1_axes = []
     all_ncp2_origins = []
     all_ncp2_axes = []
-    for frame in xrange(2):
+    
+    import time
+    tic = time.time()
+    n_frames = 5
+    
+    
+    for frame in xrange(n_frames):
         # load the coordinates from the dcd frame
         dimer.read_dcd_step(dimer_dcdfile, frame)
-        ncp1_origin, ncp1_axes = fit_cylinder.get_ncp_origin_and_axes(ncp1_c1p_mask, ncp1_dyad_resids, dna_ids, dimer, 'segname')
-        all_ncp1_origins.append(ncp1_origin)
-        all_ncp1_axes.append(ncp1_axes)
+        
+        if not aligned or frame is 0:
+            ncp1_origin, ncp1_axes = fit_cylinder.get_ncp_origin_and_axes(ncp1_c1p_mask, ncp1_dyad_resids, dna_ids, dimer, 'segname')
+            all_ncp1_origins.append(ncp1_origin)
+            all_ncp1_axes.append(ncp1_axes)
+            toc = time.time() - tic
+            print 'fitting ncp1 took %0.3f s' %toc    
         
         ncp2_origin, ncp2_axes = fit_cylinder.get_ncp_origin_and_axes(ncp2_c1p_mask, ncp2_dyad_resids, dna_ids, dimer, 'segname')
         all_ncp2_origins.append(ncp2_origin)
         all_ncp2_axes.append(ncp2_axes)
+    toc = time.time() - tic
+    print 'fitting both NCPs for %d iterations took %0.3f s' % (toc, n_frames)
 
-    all_ncp1_axes = np.array(all_ncp1_axes)
-    all_ncp1_origins = np.array(all_ncp1_origins)
     all_ncp2_axes = np.array(all_ncp2_axes)
     all_ncp2_origins = np.array(all_ncp2_origins)
-    #get angles between NCPs
 
+    all_ncp1_axes = np.copy(all_ncp2_axes)
+    all_ncp1_origins = np.copy(all_ncp2_origins)
+    all_ncp1_axes[:] = ncp1_axes
+    all_ncp1_origins[:] = all_ncp1_origins
+
+    ## get angles between NCPs
+    # bending
+    phi = np.arccos(inner1d(all_ncp1_axes[:,0], all_ncp2_axes[:,0]))
+    # twist (Victor's group from NIH uses rho = psi/2)
+    psi = np.arccos(inner1d(all_ncp1_axes[:,2], all_ncp2_axes[:,2]))
+
+    plt.scatter(phi,psi)
+    plt.show()
+    
     #get the X2 from the file
 
     #plot the X2 vs angles
