@@ -80,28 +80,47 @@ if __name__ == '__main__':
     
     import time
     tic = time.time()
-    n_frames = 5
+    n_frames = 1
     
+    ncp2_opt_params = None
     
     for frame in xrange(n_frames):
         # load the coordinates from the dcd frame
         dimer.read_dcd_step(dimer_dcdfile, frame)
         
         if not aligned or frame is 0:
-            ncp1_origin, ncp1_axes = fit_cylinder.get_ncp_origin_and_axes(ncp1_c1p_mask, ncp1_dyad_resids, dna_ids, dimer, 'segname')
+            ncp1_origin, ncp1_axes, ncp1_opt_params = fit_cylinder.get_ncp_origin_and_axes(
+                ncp1_c1p_mask, ncp1_dyad_resids, dna_ids, dimer, dna_id_type='segname', debug=False)
             all_ncp1_origins.append(ncp1_origin)
             all_ncp1_axes.append(ncp1_axes)
             toc = time.time() - tic
             print 'fitting ncp1 took %0.3f s' %toc    
         
-        ncp2_origin, ncp2_axes = fit_cylinder.get_ncp_origin_and_axes(ncp2_c1p_mask, ncp2_dyad_resids, dna_ids, dimer, 'segname')
+        try:
+            ncp2_origin, ncp2_axes, ncp2_opt_params = fit_cylinder.get_ncp_origin_and_axes(
+                ncp2_c1p_mask, ncp2_dyad_resids, dna_ids, dimer, ncp2_opt_params, 'segname', debug=False)
+        except RuntimeError:
+            print 'ERROR: curve_fit failed'
+            ncp2_origin = all_ncp2_origins[-1] *  0
+            ncp2_axes = all_ncp2_axes[-1] * 0
         all_ncp2_origins.append(ncp2_origin)
         all_ncp2_axes.append(ncp2_axes)
     toc = time.time() - tic
-    print 'fitting both NCPs for %d iterations took %0.3f s' % (toc, n_frames)
+    print 'fitting both NCPs for %d iterations took %0.3f s' % (n_frames, toc)
 
     all_ncp2_axes = np.array(all_ncp2_axes)
     all_ncp2_origins = np.array(all_ncp2_origins)
+
+    # get the minimum distance from the origin and the axis
+    ncp1_axis_vectors = vector_from_line(dimer.coor(), ncp1_origin, ncp1_axes[2])
+    ncp1_axis_magnitude = np.sqrt(inner1d(ncp1_axis_vectors, ncp1_axis_vectors))
+    ncp1_origin_vectors = dimer.coor() - ncp1_origin
+    ncp1_origin_magnitude = np.sqrt(inner1d(ncp1_origin_vectors, ncp1_origin_vectors))
+    
+    ncp2_axis_vectors = vector_from_line(dimer.coor(), ncp2_origin, ncp2_axes[2])
+    ncp2_axis_magnitude = np.sqrt(inner1d(ncp2_axis_vectors, ncp2_axis_vectors))
+    ncp2_origin_vectors = dimer.coor() - ncp2_origin
+    ncp2_origin_magnitude = np.sqrt(inner1d(ncp2_origin_vectors, ncp2_origin_vectors))
 
     all_ncp1_axes = np.copy(all_ncp2_axes)
     all_ncp1_origins = np.copy(all_ncp2_origins)
@@ -115,6 +134,8 @@ if __name__ == '__main__':
     psi = np.arccos(inner1d(all_ncp1_axes[:,2], all_ncp2_axes[:,2]))
 
     plt.scatter(phi,psi)
+    plt.xlabel('phi: bend')
+    plt.ylabel('psi: twist')
     plt.show()
     
     #get the X2 from the file

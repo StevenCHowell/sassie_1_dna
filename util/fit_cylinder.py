@@ -24,8 +24,9 @@ LOGGER = logging.getLogger(__name__) #add module name manually
 class MainError(Exception):
     pass
 
-def get_c1p_coors():
-    NotImplemented
+def dist_from_line(coor, origin, direction, points):
+
+    return dists
     
 def cylinder_distances_from_R(coor, R, X0, Y0, Vx, Vy):
     origin = np.array([X0, Y0, 0]) # Z0 = 0
@@ -44,10 +45,8 @@ def cylinder_distances_from_R(coor, R, X0, Y0, Vx, Vy):
     
     return dist-R
 
-def vector_from_cylinder_axis(coor, R, X0, Y0, Vx, Vy):
-    origin = np.array([X0, Y0, 0]) # Z0 = 0
-
-    Vz = 1
+def vector_from_line(coor, origin, direction):
+    [Vx, Vy, Vz] = direction
     length = np.sqrt(Vx**2 + Vy**2 + Vz**2)
     Ux = Vx/length
     Uy = Vy/length
@@ -144,9 +143,6 @@ def show_cylinder(coor, params, nuc_origin, nuc_axes, dyad_origin, dyad_axes):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
-    # xs = [X0, X0+Vx]
-    # ys = [Y0, Y0+Vy]
-    # zs = [Z0, Z0+Vz]
     plot_cylinder_axis = False
     if plot_cylinder_axis:
         array = np.linspace(-24,25)
@@ -196,6 +192,7 @@ def show_cylinder(coor, params, nuc_origin, nuc_axes, dyad_origin, dyad_axes):
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
+    plt.title('R=%0.1f, X0=%0.1e, Y0=%0.1e, Vx=%0.1e, Vy=%0.1e' % (R, X0, Y0, Vx, Vy))
     plt.axis('equal')
     plt.legend(loc='upper left', numpoints=1)
     plt.show()
@@ -300,22 +297,28 @@ def get_dna_bp_and_axes(dna_resids, dna_ids, dna_mol, dna_id_type='segname'):
 
     return bp_origin, bp_axes, bp_mol
 
-def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_dna_resids, dyad_dna_id, ncp, dna_id_type='segname', debug=False):
+def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_dna_resids, dyad_dna_id, ncp, prev_opt_params=None, dna_id_type='segname', debug=False):
     dyad_origin, dyad_axes, dyad_mol = get_dna_bp_and_axes(dyad_dna_resids, dyad_dna_id, ncp, dna_id_type)
     dyad_y_axis = dyad_axes[1,:]/dyad_axes[1,2]
 
     error, coor = ncp.get_coor_using_mask(0, ncp_c1p_mask)
     coor = coor[0]
     ideal = np.zeros(len(coor))
-    R = 42.04
-    # use the dyad_z_axis as the guess for the ncp_z_axis
-    guess = (R, 0, 0, dyad_y_axis[0], dyad_y_axis[1]) # (R, X0, Y0, Vx, Vy)
+
+    if prev_opt_params is None:
+        # use the dyad_z_axis as the guess for the ncp_z_axis
+        R = 41.86
+        guess = np.array([R, 0, 0, dyad_y_axis[0], dyad_y_axis[1]]) # (R, X0, Y0, Vx, Vy)
+    else:
+        guess = prev_opt_params
     
     ## fit a cylinder
     if debug:
         import time
         tic = time.time()
-    opt_params, cov_params= curve_fit(cylinder_distances_from_R, coor, ideal, guess)
+        
+    opt_params, cov_params= curve_fit(cylinder_distances_from_R, coor, ideal, p0=guess)
+
     if debug:
         toc = time.time() - tic
         print 'fitting a cylinder to the NCP took %0.3f s' %toc
@@ -328,7 +331,7 @@ def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_dna_resids, dyad_dna_id, ncp, dna
     z_hat = z/np.sqrt(np.dot(z,z))
     
     ## calculate distance from dyad_orign to the axis
-    x = vector_from_cylinder_axis(dyad_origin, opt_params[0], opt_params[1], opt_params[2], opt_params[3], opt_params[4])
+    x = vector_from_line(dyad_origin, np.concatenate((opt_params[1:3],[0])), np.concatenate((opt_params[3:5],[1])))
     ncp_origin = dyad_origin - x
 
     # xp0 = vector_from_cylinder_axis(dyad_origin, params[0], params[1], params[2], params[3], params[4])
@@ -345,7 +348,7 @@ def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_dna_resids, dyad_dna_id, ncp, dna
         ## display the fit results
         show_cylinder(coor, opt_params, ncp_origin, ncp_axes, dyad_origin, dyad_axes)
     
-    return ncp_origin, ncp_axes
+    return ncp_origin, ncp_axes, opt_params
 
 if __name__ == '__main__':
     import time
