@@ -54,12 +54,13 @@ def vector_from_line(coor, origin, direction):
     U = np.array([Ux,Uy,Uz])
     
     coor_cyl = coor-origin
-    A = np.dot((coor_cyl),U)     # component of array from origin to point along axis
+    A = np.dot(coor_cyl, U)     # component of array from origin to point along axis
     D = (coor_cyl)-np.outer(A,U) # vectors from axis to point
     
     return D
 
 def transform_coor(coor3, vector, origin):
+
     # initialize vector arrays for coordinates and orientation vectors
     # changing them from 3 component vectors into 4 component vectors to
     # incorporate transaltions into the matrix math
@@ -74,7 +75,7 @@ def transform_coor(coor3, vector, origin):
     coor4 = np.ones((len(coor3), 4))
     coor4[:, 0:3] = coor3     #; print 'coor4 =', coor4
 
-    # angles to get to vector
+    # angles to align original z-axis to vector
 
     # create the translation-rotation matrix
     # This is intended to be multiplied from the right (unlike standard matrix
@@ -288,7 +289,14 @@ def cylinder(r,n=20):
     
     return x,y,z
 
-def get_dna_bp_and_axes(dna_resids, dna_ids, dna_mol, dna_id_type='segname'):
+def get_dna_bp_and_axes(bp_mask, dna_ids, dna_mol, dna_id_type='segname'):
+    bp_mol = sasmol.SasMol(0)
+    error = dna_mol.copy_molecule_using_mask(bp_mol, bp_mask, 0)
+    bp_origin, bp_axes = get_dna_bp_reference_frame(dna_ids, bp_mol, dna_id_type)
+
+    return bp_origin, bp_axes, bp_mol
+
+def get_dna_bp_and_axes_slow(dna_resids, dna_ids, dna_mol, dna_id_type='segname'):
     bp_filter = '( %s[i] == "%s" and resid[i] == %d ) or ( %s[i] == "%s" and resid[i] == %d )' % (dna_id_type, dna_ids[0], dna_resids[0], dna_id_type, dna_ids[1], dna_resids[1])
     error, bp_mask = dna_mol.get_subset_mask(bp_filter)
     bp_mol = sasmol.SasMol(0)
@@ -297,9 +305,50 @@ def get_dna_bp_and_axes(dna_resids, dna_ids, dna_mol, dna_id_type='segname'):
 
     return bp_origin, bp_axes, bp_mol
 
-def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_dna_resids, dyad_dna_id, ncp, prev_opt_params=None, dna_id_type='segname', debug=False):
-    dyad_origin, dyad_axes, dyad_mol = get_dna_bp_and_axes(dyad_dna_resids, dyad_dna_id, ncp, dna_id_type)
-    dyad_y_axis = dyad_axes[1,:]/dyad_axes[1,2]
+def get_axes_from_points(origin, p1, p2):
+    '''
+    determine the orthogonal coordinate axes using an origin point and 2 points
+
+    Parameters
+    ----------
+    origin : np.array
+        The origin for the coordinate axes
+    p1 : np.array
+        A point along the first axis
+    p2 : np.array
+        A point along the second axis
+
+    Returns
+    -------
+    ax1_hat : np.array
+        unit vector along the first axis
+    ax2_hat : np.array
+        unit vector along the second axis
+    ax3_hat : np.array
+        unit vector along the third axis
+
+    Notes
+    -----
+    The third axis will be determined using right-hand-rule:
+    ax3_hat = ax1_hat x ax2_hat
+    
+    accordingly (p1, p2) should be (pX, pY), (pY, pZ), or (pZ, pX)
+
+    example:
+    >>> get_axes_from_points(np.array([0,0,0]), np.array([2,0,0]), np.array([0,3,0]))
+    (array([ 1.,  0.,  0.]), array([ 0.,  1.,  0.]), array([ 0.,  0.,  1.]))
+    '''
+    ax1 = p1 - origin
+    ax2 = p2 - origin
+    ax1_hat = ax1/np.sqrt(np.dot(ax1,ax1))
+    ax2_hat = ax2/np.sqrt(np.dot(ax2,ax2))
+    ax3_hat = np.cross(ax1_hat, ax2_hat)
+
+    return ax1_hat, ax2_hat, ax3_hat
+
+
+def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_mask, dyad_dna_id, ncp, prev_opt_params=None, dna_id_type='segname', debug=False):
+    dyad_origin, dyad_axes, dyad_mol = get_dna_bp_and_axes(dyad_mask, dyad_dna_id, ncp, dna_id_type)
 
     error, coor = ncp.get_coor_using_mask(0, ncp_c1p_mask)
     coor = coor[0]
@@ -308,6 +357,7 @@ def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_dna_resids, dyad_dna_id, ncp, pre
     if prev_opt_params is None:
         # use the dyad_z_axis as the guess for the ncp_z_axis
         R = 41.86
+        dyad_y_axis = dyad_axes[1,:]/dyad_axes[1,2]
         guess = np.array([R, 0, 0, dyad_y_axis[0], dyad_y_axis[1]]) # (R, X0, Y0, Vx, Vy)
     else:
         guess = prev_opt_params
@@ -360,7 +410,9 @@ if __name__ == '__main__':
     dyad_dna_resids = [0, 0]
     dyad_dna_id = ['I', 'J']
     tic = time.time()
-    ncp_origin, ncp_axes = get_ncp_origin_and_axes(c1p_mask, dyad_dna_resids, dyad_dna_id, ncp, 'chain', True) 
+    bp_filter = '( chain[i] == "%s" and resid[i] == %d ) or ( chain[i] == "%s" and resid[i] == %d )' % (dyad_dna_id[0], dyad_dna_resids[0], dyad_dna_id[1], dyad_dna_resids[1])
+    error, dyad_mask = ncp.get_subset_mask(bp_filter)
+    ncp_origin, ncp_axes, opt_params = get_ncp_origin_and_axes(c1p_mask, dyad_mask, dyad_dna_id, ncp, None, 'chain', False) 
     toc = time.time() - tic
     print 'determining the NCP origin and axes took %0.3f s' %toc
     print 'ncp_origin =', ncp_origin
