@@ -205,8 +205,8 @@ def fit_method(n_frames, dimer_dcdfile, dimer, aligned, ncp1_c1p_mask,
     error, ncp1_dyad_mask = dimer.get_subset_mask(ncp1_dyad_filter)
     error, ncp2_dyad_mask = dimer.get_subset_mask(ncp2_dyad_filter)
     
-    ncp2_opt_params = None
-    
+    ncp2_opt_params = ncp1_dyad_mol = ncp2_dyad_mol = None
+
     for frame in xrange(n_frames):
         # load the coordinates from the dcd frame
         dimer.read_dcd_step(dimer_dcdfile, frame)
@@ -215,19 +215,19 @@ def fit_method(n_frames, dimer_dcdfile, dimer, aligned, ncp1_c1p_mask,
         dimer.setCoor(coor)
         
         if not aligned or frame is 0:
-            ncp1_origin, ncp1_axes, ncp1_opt_params = geometry.get_ncp_origin_and_axes(
-                ncp1_c1p_mask, ncp1_dyad_mask, dna_ids, dimer, None, 'segname', debug)
+            ncp1_origin, ncp1_axes, ncp1_opt_params, ncp1_dyad_mol = geometry.get_ncp_origin_and_axes(
+                ncp1_c1p_mask, ncp1_dyad_mask, dna_ids, dimer, None, 'segname', ncp1_dyad_mol, debug)
             if not aligned:
                 all_ncp1_origins.append(ncp1_origin)
                 all_ncp1_axes.append(ncp1_axes)
         
         try:
-            ncp2_origin, ncp2_axes, ncp2_opt_params = geometry.get_ncp_origin_and_axes(
-                ncp2_c1p_mask, ncp2_dyad_mask, dna_ids, dimer, ncp2_opt_params, 'segname', False)
+            ncp2_origin, ncp2_axes, ncp2_opt_params, ncp2_dyad_mol = geometry.get_ncp_origin_and_axes(
+                ncp2_c1p_mask, ncp2_dyad_mask, dna_ids, dimer, ncp2_opt_params, 'segname', ncp2_dyad_mol, debug)
         except RuntimeError:
             try:
-                ncp2_origin, ncp2_axes, ncp2_opt_params = geometry.get_ncp_origin_and_axes(
-                    ncp2_c1p_mask, ncp2_dyad_mask, dna_ids, dimer, None, 'segname', False)
+                ncp2_origin, ncp2_axes, ncp2_opt_params, ncp2_dyad_mol = geometry.get_ncp_origin_and_axes(
+                    ncp2_c1p_mask, ncp2_dyad_mask, dna_ids, dimer, None, 'segname', ncp2_dyad_mol, debug)
             except RuntimeError:
                 print 'ERROR: curve_fit failed for frame %d' % frame
                 ncp2_origin = all_ncp2_origins[-1] *  0
@@ -280,9 +280,9 @@ if __name__ == '__main__':
     dimer.read_pdb(pdb_path)
     dimer_dcdfile = dimer.open_dcd_read(dcd_path)
     
-    closest_atom_x_axis = [34710, 27887]
-    closest_atom_y_axis = [ 1563, 14817]
-    closest_atom_origin = [17061, 23178]
+    # closest_atom_x_axis = [34710, 27887]
+    # closest_atom_y_axis = [ 1563, 14817]
+    # closest_atom_origin = [17061, 23178]
     
     main(dimer, dimer_dcdfile)
 

@@ -289,9 +289,13 @@ def cylinder(r,n=20):
     
     return x,y,z
 
-def get_dna_bp_and_axes(bp_mask, dna_ids, dna_mol, dna_id_type='segname'):
-    bp_mol = sasmol.SasMol(0)
-    error = dna_mol.copy_molecule_using_mask(bp_mol, bp_mask, 0)
+def get_dna_bp_and_axes(bp_mask, dna_ids, dna_mol, bp_mol=None, dna_id_type='segname'):
+    if not bp_mol:
+        bp_mol = sasmol.SasMol(0)
+        error = dna_mol.copy_molecule_using_mask(bp_mol, bp_mask, 0)
+    else:
+        error, bp_coor = dna_mol.get_coor_using_mask(0, bp_mask)
+        bp_mol.setCoor(bp_coor)
     bp_origin, bp_axes = get_dna_bp_reference_frame(dna_ids, bp_mol, dna_id_type)
 
     return bp_origin, bp_axes, bp_mol
@@ -347,8 +351,8 @@ def get_axes_from_points(origin, p1, p2):
     return ax1_hat, ax2_hat, ax3_hat
 
 
-def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_mask, dyad_dna_id, ncp, prev_opt_params=None, dna_id_type='segname', debug=False):
-    dyad_origin, dyad_axes, dyad_mol = get_dna_bp_and_axes(dyad_mask, dyad_dna_id, ncp, dna_id_type)
+def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_mask, dyad_dna_id, ncp, prev_opt_params=None, dna_id_type='segname', dyad_mol=None, debug=False):
+    dyad_origin, dyad_axes, dyad_mol = get_dna_bp_and_axes(dyad_mask, dyad_dna_id, ncp, dyad_mol, dna_id_type)
 
     error, coor = ncp.get_coor_using_mask(0, ncp_c1p_mask)
     coor = coor[0]
@@ -398,7 +402,7 @@ def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_mask, dyad_dna_id, ncp, prev_opt_
         ## display the fit results
         show_cylinder(coor, opt_params, ncp_origin, ncp_axes, dyad_origin, dyad_axes)
     
-    return ncp_origin, ncp_axes, opt_params
+    return ncp_origin, ncp_axes, opt_params, dyad_mol
 
 if __name__ == '__main__':
     import time
@@ -412,7 +416,7 @@ if __name__ == '__main__':
     tic = time.time()
     bp_filter = '( chain[i] == "%s" and resid[i] == %d ) or ( chain[i] == "%s" and resid[i] == %d )' % (dyad_dna_id[0], dyad_dna_resids[0], dyad_dna_id[1], dyad_dna_resids[1])
     error, dyad_mask = ncp.get_subset_mask(bp_filter)
-    ncp_origin, ncp_axes, opt_params = get_ncp_origin_and_axes(c1p_mask, dyad_mask, dyad_dna_id, ncp, None, 'chain', False) 
+    ncp_origin, ncp_axes, opt_params, dyad_mol = get_ncp_origin_and_axes(c1p_mask, dyad_mask, dyad_dna_id, ncp, None, 'chain', None, False) 
     toc = time.time() - tic
     print 'determining the NCP origin and axes took %0.3f s' %toc
     print 'ncp_origin =', ncp_origin
