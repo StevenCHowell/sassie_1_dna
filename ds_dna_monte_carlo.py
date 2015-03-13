@@ -318,7 +318,7 @@ def make_rigid_groups(aa_all, rigid_groups):
 
     print "grouping the rigid bodies..."
     tic = time.time()
-    if 0 < len(rigid_groups):
+    if len(rigid_groups) > 0:
         # create a sasmol object for each rigid move group (rigid_groups)
         rigid_group_masks = []  # masks to separate the cg_protein into NCP groups
         rigid_group_mols = []
@@ -347,7 +347,7 @@ def make_rigid_groups(aa_all, rigid_groups):
             for j in xrange(i+1, len(rigid_move_masks)):
                 rigid_move_masks[i] += rigid_move_masks[j]
 
-        rigid_mask = numpy.copy(rigid_move_masks[0])
+        rigid_mask = numpy.copy(rigid_move_masks[0]) # contains all the rigid atoms
     else:
         rigid_mask = numpy.zeros(aa_all.natoms())
         rigid_group_masks = []
@@ -946,7 +946,7 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
                 # none of rigid componets will be fixed
                 r_mask_fix = numpy.zeros(r_mask_rot.shape)
             else:
-                r_mask_fix = rigid_move_masks[group-1] - rigid_move_masks[group]
+                r_mask_fix = rigid_move_masks[0] - rigid_move_masks[group]
             r_ind_fix = mask2ind(r_mask_fix)
             r_coor_fix = r_coor[r_ind_fix]
 
@@ -955,7 +955,7 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
             d_coor[trialbead-1:], xyz[:, trialbead-1:], thetaXYZ,
             r_coor_rot, softrotation) 
 
-        # store the rotated protein coordinates
+        # store the rotated rigid coordinates
         if beadgroups[trialbead] < len(rigid_move_masks):
             r_coor[r_ind_rot] = r_coor_rot
 
@@ -973,9 +973,9 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
             warnings.filterwarnings('error') # need this for np warnings
             try:
                 probability = numpy.exp(-dU)
-            # print '\n(Ub1, Uwca1) =', (Ub1, Uwca1) 
-            # print '(Ub1/U_T1, Uwca1/U_T1) =', (Ub1/U_T1, Uwca1/U_T1)
-            # print '(p, dU) =', (p, dU)
+                # print '\n(Ub1, Uwca1) =', (Ub1, Uwca1) 
+                # print '(Ub1/U_T1, Uwca1/U_T1) =', (Ub1/U_T1, Uwca1/U_T1)
+                # print '(p, dU) =', (p, dU)
             except Warning:
                 if dU > 99:
                     probability =  0
@@ -997,17 +997,17 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
             dna_pass = True
 
             # now check for collisions
-            if len(r_coor_rot) > 0:   # only if proteins were rotated
-                # ~~~~ Check for overlap, DNA-protein or protein-protein ~~~~~~#
+            if len(r_coor_rot) > 0:   # only if rigids were rotated
+                # ~~~~ Check for overlap, DNA-rigid or rigid-rigid ~~~~~~#
                 d_coor_fix = d_coor[trialbead:]
                 d_coor_rot = d_coor[:trialbead]
 
-                # check for protein-protein overlap
+                # check for rigid-rigid overlap
                 if 1 == f_overlap2(r_coor_rot, r_coor_fix, rigid_rigid_test):
                     print 'Collision between 2 rigid components'
                     collision = 1
 
-                # check for DNA-protein overlap
+                # check for DNA-rigid overlap
                 elif 1 == f_overlap2(r_coor_rot, d_coor_fix, dna_rigid_test):
                     print 'Rigid-DNA (rot-fix) collision'
                     collision = 1
@@ -1016,14 +1016,14 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
                     print 'Rigid-DNA (fix-rot) collision'
                     collision = 1
 
-        if dna_pass and collision == 0:
+        if dna_pass and not collision:
             n_from_reload += 1
             steps_from_0[n_accept] = n_from_reload + n_reload[-1]
             n_accept += 1                      # increment accept counter
             # cg_dna.setCoor(d_coor) # <-- DO NOT use setCoor, want uniuqe mem
             # cg_pro.setCoor(p_coor) # <-- DO NOT use setCoor, want uniuqe mem            
             cg_dna.setCoor(numpy.array([d_coor])) # update dna coordinates
-            rigid_mol.setCoor(numpy.array([r_coor])) # update protein coordinates
+            rigid_mol.setCoor(numpy.array([r_coor])) # update rigid coordinates
             vecXYZ = numpy.copy(xyz)              # update dna orientations
             vecX_mol.setCoor(numpy.array([vecXYZ[0]])) # independent of vecXYZ[0]
             vecY_mol.setCoor(numpy.array([vecXYZ[1]])) # independent of vecXYZ[1]
@@ -1053,8 +1053,8 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
                                     # rigid_group_mols, aa_pro)
 
                 # ~~Combine aa Complete Structure~~
-                aa_all.set_coor_using_mask(rigid_mol, 0, rigid_mask)
                 aa_all.set_coor_using_mask(aa_dna, 0, aa_dna_mask)
+                aa_all.set_coor_using_mask(rigid_mol, 0, rigid_mask)
                 # ~~Write DCD step~~
                 n_written += 1
                 aa_all.write_dcd_step(aa_all_dcd_out, 0, n_written)
@@ -1094,7 +1094,7 @@ def dna_mc(trials, i_loop, theta_max, theta_z_max, debug, goback, n_dcd_write,
                 n_reject += 1                   # increment total reject counter
                 d_coor = numpy.copy(cg_dna.coor()[0]) # reset the dna coordinates
 
-            r_coor = numpy.copy(rigid_mol.coor()[0]) # reset the protein coordinates
+            r_coor = numpy.copy(rigid_mol.coor()[0]) # reset the rigid coordinates
             xyz = numpy.copy(vecXYZ)              # reset the dna orientations
 
             # save previous coordinates again
@@ -1320,7 +1320,7 @@ def main(variables):
         toc = time.time() - tic 
         print 'Total coarse-grain time = %0.3f seconds' % toc        
 
-        loop_trials = 100
+        loop_trials = 100 # set at 100 for minimization purposes (increase)
         if remaining_trials < loop_trials:
             loop_trials = remaining_trials
         remaining_trials -= loop_trials  # increment for the number of trials
