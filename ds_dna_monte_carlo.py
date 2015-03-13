@@ -47,9 +47,11 @@ try:
     from simtk.openmm.app import *
     from simtk.openmm import *
     import  simtk.unit as unit
+    openmm_min = True
 except:
     print 'failed to load packages for running openmm'
     print 'BE AWARE: will continue to run with non-optimal setup'
+    openmm_min = False
 
 '''
     DS_DNA_MONTE_CARLO is the module that performs Monte Carlo moves on DNA
@@ -100,14 +102,13 @@ def unpack_variables(variables):
     n_dcd_write   = variables['n_dcd_write'][0]
     softrotation  = numpy.abs(variables['softrotation'][0])
     rm_pkl        = variables['rm_pkl'][0]
-    openmm_min    = variables['openmm_min'][0]
     seed          = variables['seed'][0]
     temperature   = variables['seed'][0]
 
     return (ofile, infile, refpdb, path, trials, goback, runname, psffile, theta_max, 
             theta_z_max, bp_per_bead, dna_segnames, dna_resids, rigid_groups, 
             flex_resids, debug, write_flex, keep_cg_files, keep_unique,
-            n_dcd_write, softrotation, rm_pkl, openmm_min, seed, temperature)
+            n_dcd_write, softrotation, rm_pkl, seed, temperature)
 
 def make_cg_dna(dna_segnames, dna_resids, bp_per_bead, aa_all, txtOutput,
                 dna_bead_masks=[],aa_dna_mask=[]):
@@ -1246,7 +1247,7 @@ def main(variables):
     (ofile, infile, refpdb, path, trials, goback, runname, psffile, theta_max, 
      theta_z_max, bp_per_bead, dna_segnames, dna_resids, rigid_groups, 
      flex_resids, debug, write_flex, keep_cg_files, keep_unique,
-     n_dcd_write, softrotation, rm_pkl, openmm_min, seed, temperature
+     n_dcd_write, softrotation, rm_pkl, seed, temperature
      ) = unpack_variables(variables)
 
 
@@ -1320,10 +1321,14 @@ def main(variables):
         toc = time.time() - tic 
         print 'Total coarse-grain time = %0.3f seconds' % toc        
 
-        loop_trials = 100 # set at 100 for minimization purposes (increase)
-        if remaining_trials < loop_trials:
+        if openmm_min:
+            loop_trials = 100 # set at 100 for minimization purposes (increase)
+            if remaining_trials < loop_trials:
+                loop_trials = remaining_trials
+            remaining_trials -= loop_trials  # increment for the number of trials
+        else:
             loop_trials = remaining_trials
-        remaining_trials -= loop_trials  # increment for the number of trials
+            remaining_trials = 0
 
         if debug:
             print 'loop_trials =', loop_trials
@@ -1344,7 +1349,7 @@ def main(variables):
         if remaining_trials > 0:
             tic = time.time()
             infile, simulation = minimize(aa_ofile, refpdb, path, psffile,
-                                          runname, temperature, openmm_min, 
+                                          runname, temperature, 
                                           debug, i_loop, simulation)
             toc = time.time() - tic
             print 'minimization time = %0.3f secords' % toc
@@ -1411,7 +1416,7 @@ class my_variables(object):
         pass
 
 
-def minimize(aa_dcd, refpdb, path, psffile, runname, temperature, openmm_min,
+def minimize(aa_dcd, refpdb, path, psffile, runname, temperature,
              debug, i_loop, simulation):
     '''
     This method is passes the coordinates for the last structure to the open-mm
@@ -1719,7 +1724,6 @@ if __name__ == "__main__":
     svariables['keep_cg_files'] = ('True', 'bool') # 'True' will keep the coarse-grain DNA and protein pdb and dcd files
     svariables['keep_unique']   = ('True', 'bool') # 'False' will keep duplicate structure when move fails
     svariables['rm_pkl']        = ('False', 'bool') # 'True' will remove the coarse-grain pkl file forcing a re-coarse-graining (can be time consuming often necessary)
-    svariables['openmm_min']    = ('False', 'bool') # 'True' will remove the coarse-grain pkl file forcing a re-coarse-graining (can be time consuming often necessary)    
 
     error, variables = input_filter.type_check_and_convert(svariables)
     variables = prepare_dna_mc_input(variables)
