@@ -2,7 +2,7 @@
 # Author:  Steven C. Howell
 # Purpose: setup file for building the fortran collision calculator
 # Created: May 2014
-# $Id: setup_collision.py 72 2014-10-14 20:18:58Z schowell $
+# $Id$
 # Note: copied from setup_electrostatics.py
 #
 '''

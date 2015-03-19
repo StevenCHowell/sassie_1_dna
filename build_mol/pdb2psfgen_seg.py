@@ -4,7 +4,7 @@
 # Purpose: Replace DNA sequence with another sequence
 # Created: 24 April 2014
 #
-# $Id: pdb2psfgen.py 72 2014-10-14 20:18:58Z schowell $
+# $Id$
 # 
 '''
 This script loads a pdb structure file of DNA, and creates a '*.patches' file

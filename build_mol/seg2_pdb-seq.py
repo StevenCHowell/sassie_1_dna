@@ -4,7 +4,7 @@
 # Purpose: Prepare PDB for modeling
 # Created: 24 April 2014
 #
-# $Id: chain2_pdb-seq.py 72 2014-10-14 20:18:58Z schowell $
+# $Id$
 #
 '''
 This script creates a separate pdb for each chain of 'aa_pdb'
