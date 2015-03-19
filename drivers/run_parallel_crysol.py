@@ -15,16 +15,13 @@ class inputs():
     def __init__(self, parent = None):
         pass
 
-
-
 if __name__ == '__main__':
     in_vars = inputs()
     in_vars.ncpu = 4
     in_vars.runname = 'test'
     in_vars.pdb = '3x167.pdb'
     in_vars.dcd = '%s/dna_mc/%s.dcd' % (in_vars.runname, in_vars.pdb[:-4])
-    in_vars.dcd = '%s/dna_mc/%s.dcd' % (in_vars.runname, 'test')
-    in_vars.driver = '/home/schowell/data/code/pylib/sassie_1_na/drivers/my_crysol_driver.py'
+    in_vars.driver = '/home/schowell/data/code/pylib/sassie_1_na/drivers/crysol_driver.py'
     in_vars.maxh = 21 # Tetramer_maxh ~= (0.2 x 325)/pi     
     in_vars.fib  = 18 # more does not slow crysol down noticeably
     in_vars.maxs = 0.2
