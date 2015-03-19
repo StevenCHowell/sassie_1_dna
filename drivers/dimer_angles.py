@@ -21,6 +21,7 @@ import sassie_1_na.util.geometry as geometry
 import sassie_1_na.util.basis_to_python as basis_to_python
 import numpy as np
 from numpy.core.umath_tests import inner1d
+import pandas as pd
 import matplotlib.pyplot as plt
 # from mpl_toolkits.mplot3d import Axes3D
 
@@ -28,7 +29,7 @@ class MainError(Exception):
     pass
 
 
-def main(dimer, dimer_dcdfile):
+def main(dimer, dimer_dcdfile, x2_path, debug=False):
     # create the ncps
     ncp1_vmd_basis = ("((segname DNA1 and resid >= 15  and resid <= 161) or "
                       " (segname DNA2 and resid >= 193 and resid <= 339) ) and "
@@ -49,7 +50,8 @@ def main(dimer, dimer_dcdfile):
     aligned = True
     
     import time
-    n_frames = 1000
+    # n_frames = 10198
+    n_frames = 100
     
     tic = time.time()
     all_ncp1_origins, all_ncp2_origins, all_ncp1_axes, all_ncp2_axes = fit_method(
@@ -60,13 +62,14 @@ def main(dimer, dimer_dcdfile):
 
     ## get angles between NCPs
     # bending
-    phi_fit_r = np.arccos(inner1d(all_ncp1_axes[:,0], all_ncp2_axes[:,0]))
-    phi_fit_d = phi_fit_r * 180 / np.pi
+    phi_r = np.arccos(inner1d(all_ncp1_axes[:,0], all_ncp2_axes[:,0]))
+    phi_d = phi_r * 180 / np.pi
     # twist (Victor's group from NIH uses rho = psi/2)
-    psi_fit_r = np.arccos(inner1d(all_ncp1_axes[:,2], all_ncp2_axes[:,2]))
-    psi_fit_d = psi_fit_r * 180 / np.pi
+    psi_r = np.arccos(inner1d(all_ncp1_axes[:,2], all_ncp2_axes[:,2]))
+    psi_d = psi_r * 180 / np.pi
     
-
+    h = inner1d(all_ncp1_axes[:,2], all_ncp2_origins - all_ncp1_origins)
+    
     # tic = time.time()
     # all_ncp1_axes, all_ncp2_axes = mask_method(ncp1_c1p_mask, ncp1_dyad_resids, 
                                                # ncp2_c1p_mask, ncp2_dyad_resids, 
@@ -74,24 +77,54 @@ def main(dimer, dimer_dcdfile):
                                                # dimer, n_frames)
     # toc = time.time() - tic
     # print 'getting NCP axes using masks for %d iterations took %0.3f s' % (n_frames, toc)
+    # ## get angles between NCPs
+    # # bending
+    # phi_mask_r = np.arccos(inner1d(all_ncp1_axes[:,0], all_ncp2_axes[:,0]))
+    # phi_mask_d = phi_mask_r * 180 / np.pi
+    # # twist (Victor's group from NIH uses rho = psi/2)
+    # psi_mask_r = np.arccos(inner1d(all_ncp1_axes[:,2], all_ncp2_axes[:,2]))
+    # psi_mask_d = psi_mask_r * 180 / np.pi
 
-    ## get angles between NCPs
-    # bending
-    phi_mask_r = np.arccos(inner1d(all_ncp1_axes[:,0], all_ncp2_axes[:,0]))
-    phi_mask_d = phi_mask_r * 180 / np.pi
-    # twist (Victor's group from NIH uses rho = psi/2)
-    psi_mask_r = np.arccos(inner1d(all_ncp1_axes[:,2], all_ncp2_axes[:,2]))
-    psi_mask_d = psi_mask_r * 180 / np.pi
-
-    # plt.scatter(phi_fit_d,psi_fit_d, 'ro')
-    # plt.scatter(phi_mask_d,psi_mask_d, 'b^')
-    # plt.xlabel('phi: bend')
-    # plt.ylabel('psi: twist')
-    # plt.show()
-    
     #get the X2 from the file
+    x2_data = load_x2file(x2_path, n_frames)
     
     #plot the X2 vs anglesdef main():    
+    plt.subplot(3,2,1)
+    plt.scatter(x2_data['Rg'], x2_data['X2'],c='r')
+    plt.xlabel('Rg (A)')
+    plt.ylabel('X2')
+    
+    plt.subplot(3,2,2)
+    plt.scatter(psi_d, x2_data['X2'],c='r')
+    plt.xlabel('Twist: Psi (degrees)')
+    plt.ylabel('X2')
+
+    plt.subplot(3,2,3)
+    plt.scatter(h, x2_data['X2'],c='r')
+    plt.xlabel('h (A)')
+    plt.ylabel('X2')
+    
+    plt.subplot(3,2,4)
+    plt.scatter(phi_d, x2_data['X2'],c='r')
+    plt.xlabel('Bend: Phi (degrees)')
+    plt.ylabel('X2')
+
+    plt.subplot(3,2,5)
+    plt.scatter(x2_data['Rg'], psi_d, c='r')
+    plt.xlabel('Rg (A)')
+    plt.ylabel('Twist: Psi (degrees)')
+    
+    plt.subplot(3,2,6)
+    plt.scatter(h, phi_d, c='r')
+    plt.xlabel('Rise: h (A)')
+    plt.ylabel('Bend: Phi (degrees)')
+    
+    if debug:
+        plt.show()
+    else:
+        plt.savefig('dimer_x2.png', bbox_inches='tight')
+        plt.savefig('dimer_x2.pdf', bbox_inches='tight')
+        ## save the result here
     
     return
 
@@ -249,6 +282,14 @@ def fit_method(n_frames, dimer_dcdfile, dimer, aligned, ncp1_c1p_mask,
     
     return all_ncp1_origins, all_ncp2_origins, all_ncp1_axes, all_ncp2_axes
 
+def load_x2file(filename, n_frames=None):
+    data = pd.read_table(filename, sep='\t', skiprows=2, header=None, nrows=n_frames)
+    with open(filename, 'r') as f:
+        _, header = f.readline(), f.readline().lstrip('#').strip().split(', ')
+    header.append('unknown')
+    data.columns = header
+    return data
+
 def print_min(magnitudes, mol, dist_to='origin'):
     i_min    = magnitudes.argmin()
     val_min  = magnitudes.min()
@@ -275,6 +316,10 @@ if __name__ == '__main__':
     pdb_dir  = '/home/schowell/data/myData/sassieRuns/dimer/flex25'
     pdb_path = op.join(pdb_dir, pdb_file)
     
+    x2_file = 'x2file.txt'
+    x2_dir  = '/home/schowell/data/myData/sassieRuns/dimer/flex25/run2/filter_mid_red'
+    x2_path = op.join(x2_dir, x2_file)
+    
     # load the pdb and open the pdb for reading 
     dimer = sasmol.SasMol(0)
     dimer.read_pdb(pdb_path)
@@ -284,7 +329,7 @@ if __name__ == '__main__':
     # closest_atom_y_axis = [ 1563, 14817]
     # closest_atom_origin = [17061, 23178]
     
-    main(dimer, dimer_dcdfile)
+    main(dimer, dimer_dcdfile, x2_path)
 
     
     print '\m/ >.< \m/'

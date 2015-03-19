@@ -386,7 +386,7 @@ def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_mask, dyad_dna_id, ncp, prev_opt_
     
     ## calculate distance from dyad_orign to the axis
     x = vector_from_line(dyad_origin, np.concatenate((opt_params[1:3],[0])), np.concatenate((opt_params[3:5],[1])))
-    ncp_origin = dyad_origin - x
+    ncp_origin = dyad_origin - x.reshape(3)
 
     # xp0 = vector_from_cylinder_axis(dyad_origin, params[0], params[1], params[2], params[3], params[4])
     # xp1 = xp0-origin
