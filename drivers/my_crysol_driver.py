@@ -1,9 +1,16 @@
+#!/usr/bin/env python
+
 import sys
 import sassie.interface.input_filter as input_filter
 import sassie.calculate.gcrysol as gcrysol
 
+class inputs():
+    def __init__(self, parent = None):
+        pass
+    
 def parse():
     ''' Returns arguments in parser'''
+    import argparse
 
     parser = argparse.ArgumentParser(
         #prog='',
@@ -12,21 +19,35 @@ def parse():
         #epilog = 'no epilog found'
     )
     # standard input
-    parser.add_argument( "-r", "--runname", type=str, help = ("folder to store the minimization results"))
-    parser.add_argument( "-d", "--dcdfile", type=str, help = ("dcd/pdb file containing the structures for scattering calculation"))
-    parser.add_argument("-dp", "--dcdpath", type=str, default = 'minimization/', help =("path to the dcd/pdb file containing the structures for scattering calculation"))
-    parser.add_argument( "-p", "--pdbfile", type=str, default = 'new_c11h5.pdb', help = ("pdb file containing the structure info (enables using dcd files)"))
-    parser.add_argument("-pp", "--pdbpath", type=str, default = 'minimization/', help = ("path pdb file containing the structure info (enables using dcd files)"))
-
+    parser.add_argument( "-r", "--runname", type=str, 
+                         help = ("folder to store the results"))
+    parser.add_argument( "-d", "--dcdfile", type=str, 
+                         help = ("dcd/pdb file containing the structure frames for scattering calculation"))
+    parser.add_argument("-dp", "--dcdpath", type=str, default = 'minimization/',
+                        help =("path to the dcd/pdb file containing the structures for scattering calculation"))
+    parser.add_argument( "-p", "--pdbfile", type=str, default = 'new_c11h5.pdb',
+                         help = ("pdb file containing the structure info (enables using dcd files)"))
+    parser.add_argument("-pp", "--pdbpath", type=str, default = 'minimization/',
+                        help = ("path pdb file containing the structure info (enables using dcd files)"))
+    parser.add_argument('-lm', '--maxh', default=4, type=int,
+                        help = 'maximum order of harmonics for crysol'
+                        )
+    parser.add_argument('-fb', '--fib', default=4, type=int,
+                        help = 'order of Fibonacci grid for crysol'
+                        )
+    parser.add_argument('-ns', '--numpoints', default=4, type=int,
+                        help = 'number of points in crysol output'
+                        )
+    parser.add_argument('-sm', '--maxs', default=4, type=float,
+                        help = 'maxs s (or q) of crysol output'
+                        )
     return parser.parse_args()
-
-
 
 class Drv():
 
     module = 'crysol'
 
-    def run_me(self):
+    def run_me(self, inputs=None):
         import os
 
         #### BEGIN USER EDIT
@@ -42,7 +63,7 @@ class Drv():
 
         # system defaults
         #cryexe='/share/apps/bin/crysol.exe'
-        cryexe='/usr/local/bin/crysol.exe'
+        cryexe='/home/programs/sassie_bin/crysol.exe'
         delafs='1'
 
         # my defaults
@@ -62,19 +83,25 @@ class Drv():
         #### END USER EDIT
         #### END USER EDIT
         #### END USER EDIT
+        
+        if inputs:
+            in_vars = inputs
+        else:
+            in_vars = parse()
 
-        uname = os.popen("whoami").read()
-        if 'schowell\n' == uname:
-            ARGS = parse()
-            if ARGS.dcdfile != None and ARGS.runname != None:
-                print 'loading parameters from command line'
-                runname = ARGS.runname
-                dcdpath = ARGS.dcdpath
-                dcdfile = ARGS.dcdfile
-                pdbpath = ARGS.pdbpath
-                pdbfile = ARGS.pdbfile
-            else:
-                print 'using parameters from driver script'
+        if in_vars.dcdfile != None and in_vars.pdbfile != None:
+            print 'loading parameters from command line'
+            runname   = in_vars.runname
+            dcdpath   = in_vars.dcdpath
+            dcdfile   = in_vars.dcdfile
+            pdbpath   = in_vars.pdbpath
+            pdbfile   = in_vars.pdbfile
+            maxh      = in_vars.maxh
+            fib       = in_vars.fib
+            maxs      = in_vars.maxs
+            numpoints = in_vars.numpoints
+        else:
+            print 'using default parameters from driver script'
 
         svariables={}
 
@@ -106,7 +133,7 @@ class Drv():
         runname=self.variables['runname'][0]
 
         import multiprocessing
-        import sassie.tools.center as center
+        #        import sassie.tools.center as center
 
         txtQueue=multiprocessing.JoinableQueue()
         gcrysol.gcrysol(self.variables,txtQueue)
@@ -141,7 +168,6 @@ class Drv():
 
 
 if __name__=='__main__':
-    import argparse
     o=Drv()
     o.run_me()
     # o.verify_me()

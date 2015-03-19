@@ -14,6 +14,7 @@ import cmd
 import shutil
 import time
 import glob
+# import sassie_1_na.drivers.my_crysol_driver as crysol
 
 LOGGER = logging.getLogger(__name__) #add module name manually
 
@@ -44,6 +45,21 @@ def parse():
     parser.add_argument('-s', '--sleep', default=60, type=int,
                         help = 'time between checks for crysol to finish'
                         )
+    parser.add_argument('-dv', '--driver', default='/home/schowell/data/code/pylib/sassie_1_na/drivers/my_crysol_driver.py', 
+                        type=str, help = 'path to crysol driver'
+                        )    
+    parser.add_argument('-lm', '--maxh', default=4, type=int,
+                        help = 'maximum order of harmonics for crysol'
+                        )
+    parser.add_argument('-fb', '--fib', default=4, type=int,
+                        help = 'order of Fibonacci grid for crysol'
+                        )
+    parser.add_argument('-ns', '--numpoints', default=4, type=int,
+                        help = 'number of points in crysol output'
+                        )
+    parser.add_argument('-sm', '--maxs', default=4, type=float,
+                        help = 'maxs s (or q) of crysol output'
+                        )
     return parser.parse_args()
 
 def mkdir_p(path):
@@ -63,8 +79,8 @@ def append_bk(folder):
     if os.path.exists(new_folder):
         append_bk(new_folder)
     else:
-        shutil.move(ARGS.runname,new_folder)
-        print 'moved %s to %s' % (ARGS.runname,new_folder)
+        shutil.move(folder, new_folder)
+        print 'moved %s to %s' % (folder, new_folder)
 
 class folder_exists(cmd.Cmd):
     
@@ -73,7 +89,7 @@ class folder_exists(cmd.Cmd):
         self.prompt = '(0/1/2)> '
         
     def do_move(self, arg):
-        append_bk(ARGS.runname)
+        append_bk(self.runname)
         return True
     
     def help_move(self):
@@ -81,7 +97,7 @@ class folder_exists(cmd.Cmd):
 
     def do_replace(self, arg):
         print 'removing run folder'
-        shutil.rmtree(ARGS.runname)
+        shutil.rmtree(self.runname)
         return True
     
     def help_replace(self):
@@ -174,12 +190,13 @@ def collect_crysol(sub_dirs, runname, sleep):
                 os.system('mv %s.int %s/%s.int' % (file_name, out_dir, new_name))
                 os.system('mv %s.log %s/%s.log' % (file_name, out_dir, new_name))                
                 
-            os.system('mv *out *dcd *pdb ../')
+            # os.system('mv *out *dcd *pdb ../')
+            os.system('mv *out ../')
             n_out_files += len(sub_files)
             
         shutil.rmtree(sub_dir)
 
-def iterate_crysol(sub_dirs, dcd_file_names):
+def iterate_crysol(inputs, sub_dirs, dcd_file_names):
     if os.path.exists('/share/apps/bin/python'):
         #gibbs
         python = '/share/apps/bin/python'
@@ -192,67 +209,104 @@ def iterate_crysol(sub_dirs, dcd_file_names):
     else:
         #others
         python = '/usr/bin/env python'
-        
+    
+    # sub_inputs = crysol.inputs()
+    # sub_inputs.runname   = 'par'
+    # sub_inputs.pdbpath   = './'
+    # sub_inputs.dcdpath   = './'
+    # sub_inputs.pdbfile   = inputs.pdb
+    # sub_inputs.maxh      = inputs.maxh
+    # sub_inputs.fib       = inputs.fib
+    # sub_inputs.maxs      = inputs.maxs
+    # sub_inputs.numpoints = inputs.numpoints
+    _, driver = os.path.split(inputs.driver)
+    all_run_str = '%s %s -r par -pp ./ -p %s -dp ./ -lm %d -ns %d -sm %f -fb %d' % (python, driver, inputs.pdb, inputs.maxh, inputs.numpoints , inputs.maxs, inputs.fib)
     for (i, sub_dir) in enumerate(sub_dirs):
-        run_str = '%s ../../my_crysol_driver.py -r par -pp ./ -p %s -dp ./ -d %s > par_crysol_%02d.out  &' % (python, ARGS.pdb, dcd_file_names[i],i+1)
-        # print '\n' + run_str
+        sub_run_str = ' -d %s > par_crysol_%02d.out  &' % (dcd_file_names[i], i+1)
+        run_str = all_run_str + sub_run_str
         with cd(sub_dir):
+            os.system('cp %s ./' % inputs.driver)
             os.system(run_str)
 
-def split_dcd():
+def split_dcd(inputs):
     import sassie.sasmol.sasmol as sasmol
-    
-    if os.path.exists(ARGS.runname):
-        print 'run folder exists: %s' % ARGS.runname
-        print 'select one of the following (0/1/2): quit / move / replace'
-        folder = folder_exists()
-        result = folder.cmdloop()
-
-    print 'created new run folder: %s' % ARGS.runname
-    mkdir_p(ARGS.runname)
+    import numpy as np
+    inputs.out_dir = inputs.runname + '/crysol'
+    if os.path.exists(inputs.out_dir):
+        print 'WARNING: run folder exists (%s), moving it\n' % inputs.out_dir
+        append_bk(inputs.out_dir)
+        # print 'select one of the following (0/1/2): quit / move / replace'
+        # folder = folder_exists()
+        # folder.runname = inputs.out_dir
+        # result = folder.cmdloop()
+    else:
+        print 'created new run folder: %s' % inputs.out_dir
+    mkdir_p(inputs.out_dir)
     
     mol = sasmol.SasMol(0)
-    mol.read_pdb(ARGS.pdb)
+    mol.read_pdb(inputs.pdb)
     
-    mol.read_dcd(ARGS.dcd)
-    total_frames = mol.number_of_frames()
-    if ARGS.ncpu < 0:
-        print 'ncpu: %d < 0,   using |%d| = %d instead' % (ARGS.ncpu, 
-                                                ARGS.ncpu, abs(ARGS.ncpu) )
-        ARGS.ncpu = abs(ARGS.ncpu)
-    n_frames_sub = total_frames/ARGS.ncpu
+    # mol.read_dcd(inputs.dcd)
+    dcd_file = mol.open_dcd_read(inputs.dcd)
+    total_frames = dcd_file[2]
+    n_atoms = dcd_file[1]
+    copy_mask = np.ones(n_atoms, dtype=np.int32)
+    
+    if inputs.ncpu < 0:
+        print 'ncpu: %d < 0,   using |%d| = %d instead' % (inputs.ncpu, 
+                                                inputs.ncpu, abs(inputs.ncpu) )
+        inputs.ncpu = abs(inputs.ncpu)
+    n_frames_sub = total_frames/inputs.ncpu
     last_frame = 0
     sub_dirs = []
     dcd_file_names = []
-    for i in xrange(ARGS.ncpu):
-        i+=1
-        sub_dir = ARGS.runname + '/sub' + str(i).zfill(2) + '/'
+    for cpu in xrange(1, inputs.ncpu+1):
+        sub_dir = inputs.out_dir + '/sub' + str(cpu).zfill(2) + '/'
         sub_dirs.append(sub_dir)
-        os.mkdir(sub_dir)
-        os.system('cp %s %s' % (ARGS.pdb, sub_dir))
+        mkdir_p(sub_dir)
+        os.system('cp %s %s' % (inputs.pdb, sub_dir))
+        sub_mol = sasmol.SasMol(0)
+        mol.copy_molecule_using_mask(sub_mol, copy_mask, 0)
         with cd(sub_dir):
-            if i == ARGS.ncpu:
-                n_frames_sub = n_frames_sub + total_frames % ARGS.ncpu
-            dcd_file_name = ARGS.dcd[:-4] + '_sub' + str(i).zfill(2) + '.dcd'
-            dcd_file_names.append(dcd_file_name)
+            if cpu == inputs.ncpu:
+                n_frames_sub = n_frames_sub + total_frames % inputs.ncpu
+            dcd_out_name = 'sub' + str(cpu).zfill(2) + '.dcd'
+            dcd_file_names.append(dcd_out_name)
             first = last_frame
             last = last_frame + n_frames_sub
-            mol.write_dcd_frames(dcd_file_name, first, last)
+            dcd_out_file = sub_mol.open_dcd_write(dcd_out_name)
+            for (i, frame) in enumerate(xrange(first, last)):
+                sub_mol.read_dcd_step(dcd_file, frame)
+                sub_mol.write_dcd_step(dcd_out_file, 0, i+1)
+                
+            sub_mol.close_dcd_write(dcd_out_file)
+
+        del sub_mol
             
         last_frame += n_frames_sub
     print 
     return sub_dirs, dcd_file_names
 
-def main():
-    
+def main(inputs):
+
+    if inputs.debug:
+        logging.basicConfig(filename='%s.log' % __file__[:-3], level=logging.DEBUG)
+    else:
+        logging.basicConfig()
+
+    #check the input
+    assert os.path.exists(inputs.pdb), 'ERROR: "%s" does not exist' % inputs.pdb 
+    assert os.path.exists(inputs.dcd), 'ERROR: "%s" does not exist' % inputs.dcd
+    assert os.path.exists(inputs.driver), 'ERROR: "%s" does not exist' % inputs.driver 
+
     #break dcd into N dcds with a folder for each
-    sub_dirs, dcd_file_names = split_dcd()
+    sub_dirs, dcd_file_names = split_dcd(inputs)
     
     #run crysol instance on each folder
-    iterate_crysol(sub_dirs, dcd_file_names)
+    iterate_crysol(inputs, sub_dirs, dcd_file_names)
     
     #collect the results
-    collect_crysol(sub_dirs, ARGS.runname, ARGS.sleep)
+    collect_crysol(sub_dirs, inputs.runname, inputs.sleep)
 
     print 'finished all crysol calculations\n     \m/ >.< \m/ '
 
@@ -266,4 +320,4 @@ if __name__ == '__main__':
         logging.basicConfig()
 
     ARGS = parse()    
-    main()
+    main(ARGS)
