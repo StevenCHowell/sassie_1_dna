@@ -23,10 +23,6 @@ LOGGER = logging.getLogger(__name__) #add module name manually
 
 class MainError(Exception):
     pass
-
-def dist_from_line(coor, origin, direction, points):
-
-    return dists
     
 def cylinder_distances_from_R(coor, R, X0, Y0, Vx, Vy):
     origin = np.array([X0, Y0, 0]) # Z0 = 0
@@ -60,7 +56,19 @@ def vector_from_line(coor, origin, direction):
     return D
 
 def transform_coor(coor3, vector, origin):
-
+    '''
+    purpose:
+        transform coordinates to a new cartesian configuration
+    
+    input parameters:
+        coor3:  coordinates originating at [0, 0, 0] oriented along the 
+                z-axis [0, 0, 1]
+        origin: final origin
+        vector: final orientation
+        
+    output parameters:
+        result: transformed coordinates
+    '''
     # initialize vector arrays for coordinates and orientation vectors
     # changing them from 3 component vectors into 4 component vectors to
     # incorporate transaltions into the matrix math
