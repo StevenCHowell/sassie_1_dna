@@ -24,6 +24,10 @@ LOGGER = logging.getLogger(__name__) #add module name manually
 class MainError(Exception):
     pass
     
+class struct():
+    def __init__(self):
+        pass
+
 def cylinder_distances_from_R(coor, R, X0, Y0, Vx, Vy):
     origin = np.array([X0, Y0, 0]) # Z0 = 0
 
@@ -68,6 +72,10 @@ def transform_coor(coor3, vector, origin):
         
     output parameters:
         result: transformed coordinates
+        
+    improvements:
+        rotate about the vector orthogonal to the two orientation vectors
+        rather than about X, then Z axes
     '''
     # initialize vector arrays for coordinates and orientation vectors
     # changing them from 3 component vectors into 4 component vectors to
@@ -106,7 +114,7 @@ def transform_coor(coor3, vector, origin):
     R[3,:3] = origin
     
     
-    # R would rotate V to [0, 0, 1], we want the reverse of that: V.T
+    # perform the rotation
     result = np.dot(coor4,R)
 
     return result[:,:-1]
@@ -160,15 +168,16 @@ def show_cylinder(coor, params, nuc_origin, nuc_axes, dyad_origin, dyad_axes):
         zs = array*Vz + Z0
         ax.plot(xs, ys, zs, label='cylinder axis')
     
-    ax.plot(coor[:,0], coor[:,1], coor[:,2], 'o', label="C1' coordinates")
-
     plot_cylinder_origin = False
     if plot_cylinder_origin:
         # ax.scatter(X0, Y0, Z0, color='blue', label='origin', marker='x')
         cyl_origin = np.array([[X0, Y0, Z0]])
         # ax.plot(cyl_origin[:,0], cyl_origin[:,1], cyl_origin[:,2], color='blue', label='cylinder_origin', marker='x', line='')
         ax.plot(cyl_origin[:,0], cyl_origin[:,1], cyl_origin[:,2], 'bx', label='cylinder origin')
-    
+
+    # plot the coordinates the cylinder was fit to
+    ax.plot(coor[:,0], coor[:,1], coor[:,2], 'o', label="C1' coordinates")
+
     # X,Y,Z = cylinder(np.ones((10,1))*R, 20)
     vector = np.array([Vx, Vy, Vz])
     X_raw, Y_raw, Z_raw = cylinder(np.ones((2,1))*R, 20)
@@ -177,11 +186,11 @@ def show_cylinder(coor, params, nuc_origin, nuc_axes, dyad_origin, dyad_axes):
     X, Y, Z = transform_surf(X_raw, Y_raw, Z_raw, vector, nuc_origin)
     ax.plot_wireframe(X,Y,Z, label='cylinder', color='orange', lw='2')
 
-    ax.plot(nuc_origin[:,0], nuc_origin[:,1], nuc_origin[:,2], 'gs', label='nucleosome origin') 
+    ax.plot([nuc_origin[0]], [nuc_origin[1]], [nuc_origin[2]], 'gs', label='nucleosome origin') 
     styles = ['r-','g-','b-']
     labels = ['X-axis', 'Y-axis', 'Z-axis']
     for (i, axis) in enumerate(nuc_axes):
-        axes_vec = np.concatenate((nuc_origin, axis*10 + nuc_origin), axis=0)
+        axes_vec = np.vstack((nuc_origin, axis*15 + nuc_origin))
         ax.plot(axes_vec[:,0], axes_vec[:,1], axes_vec[:,2], styles[i], label=labels[i])
 
     dyad_origin = dyad_origin.reshape(1,3)
@@ -190,7 +199,7 @@ def show_cylinder(coor, params, nuc_origin, nuc_axes, dyad_origin, dyad_axes):
     styles = ['r-','g-','b-']
     labels = ['dyad X-axis', 'dyad Y-axis', 'dyad Z-axis']
     for (i, axis) in enumerate(dyad_axes):
-        dyad_axis = np.concatenate((dyad_origin, axis*10 + dyad_origin), axis=0)
+        dyad_axis = np.vstack((dyad_origin, axis*10 + dyad_origin))
         ax.plot(dyad_axis[:,0], dyad_axis[:,1], dyad_axis[:,2], styles[i], label=labels[i])
     # dyad = dyad_mol.coor()[0]
     # ax.plot(dyad[:,0], dyad[:,1], dyad[:,2], 'ro', label='dyad bp')
@@ -205,8 +214,71 @@ def show_cylinder(coor, params, nuc_origin, nuc_axes, dyad_origin, dyad_axes):
     plt.axis('equal')
     plt.legend(loc='upper left', numpoints=1)
     plt.show()
+
+
+def show_ncps(all_ncp_plot_vars, title='NCP array'):
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
     
-    print '\m/ >.< \m/'
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    n_ncps = len(all_ncp_plot_vars)
+
+    for i in xrange(n_ncps):
+        coor        = all_ncp_plot_vars[i].coor
+        params      = all_ncp_plot_vars[i].opt_params
+        ncp_origin  = all_ncp_plot_vars[i].ncp_origin
+        ncp_axes    = all_ncp_plot_vars[i].ncp_axes
+        dyad_origin = all_ncp_plot_vars[i].dyad_origin
+        i_ncp = i+1
+        [R, X0, Y0, Vx, Vy] = params
+        Z0 = 0
+        Vz = 1
+        
+        # plot the coordinates the cylinder was fit to
+        coor_label = "NCP-%d C1' atoms" % i_ncp
+        ax.plot(coor[:,0], coor[:,1], coor[:,2], 'o', label=coor_label)
+        
+        # plot the cylinder fit of the coordinates
+        vector = np.array([Vx, Vy, Vz])
+        X_raw, Y_raw, Z_raw = cylinder(np.ones((2,1))*R, 20)
+        h = 40
+        Z_raw = (Z_raw-0.5) * h
+        X, Y, Z = transform_surf(X_raw, Y_raw, Z_raw, vector, ncp_origin)
+        ax.plot_wireframe(X,Y,Z, color='orange', lw='2')
+
+        # plot NCP origin and axes
+        # origin_label = "NCP-%d origin" % n_ncp
+        ax.plot([ncp_origin[0]], [ncp_origin[1]], [ncp_origin[2]], 'gs')
+        styles = ['r-','g-','b-']
+        labels = ['X-axis', 'Y-axis', 'Z-axis']
+        for (j, axis) in enumerate(ncp_axes):
+            axes_vec = np.vstack((ncp_origin, axis*15 + ncp_origin))
+            if i_ncp == n_ncps:
+                ax.plot(axes_vec[:,0], axes_vec[:,1], axes_vec[:,2], styles[j], label=labels[j])
+            else:
+                ax.plot(axes_vec[:,0], axes_vec[:,1], axes_vec[:,2], styles[j])
+        
+        # plot the NCP dyad origin
+        dyad_origin = dyad_origin.reshape(1,3)
+        if i_ncp == n_ncps:
+            ax.plot(dyad_origin[:,0], dyad_origin[:,1], dyad_origin[:,2], 'rs', label='dyad origin')
+        else:
+            ax.plot(dyad_origin[:,0], dyad_origin[:,1], dyad_origin[:,2], 'rs')
+    
+    # Shrink current axis by 20%
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+
+    # Put a legend to the right of the current axis
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    plt.title(title)
+    plt.axis('equal')
+    plt.legend(loc='upper left', numpoints=1, bbox_to_anchor=(1, 0.5))
+    plt.show()
+
 
 def get_dna_bp_reference_frame(dna_ids, bp_mol, dna_id_type='segname'):
     '''
@@ -359,7 +431,8 @@ def get_axes_from_points(origin, p1, p2):
     return ax1_hat, ax2_hat, ax3_hat
 
 
-def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_mask, dyad_dna_id, ncp, prev_opt_params=None, dna_id_type='segname', dyad_mol=None, debug=False):
+def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_mask, dyad_dna_id, ncp, prev_opt_params=None, 
+                            dna_id_type='segname', dyad_mol=None, debug=False):
     dyad_origin, dyad_axes, dyad_mol = get_dna_bp_and_axes(dyad_mask, dyad_dna_id, ncp, dyad_mol, dna_id_type)
 
     error, coor = ncp.get_coor_using_mask(0, ncp_c1p_mask)
@@ -368,9 +441,14 @@ def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_mask, dyad_dna_id, ncp, prev_opt_
 
     if prev_opt_params is None:
         # use the dyad_z_axis as the guess for the ncp_z_axis
-        R = 41.86
+        R = 41.5
         dyad_y_axis = dyad_axes[1,:]/dyad_axes[1,2]
-        guess = np.array([R, 0, 0, dyad_y_axis[0], dyad_y_axis[1]]) # (R, X0, Y0, Vx, Vy)
+        
+        # guess where the cylinder crosses the z=0 plane
+        ncp_origin_guess = dyad_origin + R/2 * dyad_axes[0]
+        cyl_origin_guess = ncp_origin_guess - ncp_origin_guess[2] / dyad_axes[1,2] * dyad_axes[1]
+        
+        guess = np.array([R, cyl_origin_guess[0], cyl_origin_guess[1], dyad_y_axis[0], dyad_y_axis[1]]) # (R, X0, Y0, Vx, Vy)
     else:
         guess = prev_opt_params
     
@@ -410,7 +488,15 @@ def get_ncp_origin_and_axes(ncp_c1p_mask, dyad_mask, dyad_dna_id, ncp, prev_opt_
         ## display the fit results
         show_cylinder(coor, opt_params, ncp_origin, ncp_axes, dyad_origin, dyad_axes)
     
-    return ncp_origin, ncp_axes, opt_params, dyad_mol
+    ncp_plot_vars = struct()
+    ncp_plot_vars.coor        = coor
+    ncp_plot_vars.opt_params  = opt_params
+    ncp_plot_vars.ncp_origin  = ncp_origin
+    ncp_plot_vars.ncp_axes    = ncp_axes
+    ncp_plot_vars.dyad_origin = dyad_origin
+    ncp_plot_vars.dyad_axes   = dyad_axes
+    
+    return ncp_origin, ncp_axes, opt_params, dyad_mol, ncp_plot_vars
 
 if __name__ == '__main__':
     import time

@@ -25,9 +25,9 @@ if __name__ == '__main__':
     in_vars.maxh = 21 # Tetramer_maxh ~= (0.2 x 325)/pi     
     in_vars.fib  = 18 # more does not slow crysol down noticeably
     in_vars.maxs = 0.2
-    in_vars.numpoints = 26
-    in_vars.sleep = 10
-    in_vars.debug = True
+    in_vars.numpoints = 25
+    in_vars.sleep = 60
+    in_vars.debug = False
     # in_vars.maxh = 3 # Tetramer_maxh ~= (0.2 x 325)/pi     
     # in_vars.fib  = 5 # more does not slow crysol down noticeably
 
