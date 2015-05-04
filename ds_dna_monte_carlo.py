@@ -1325,7 +1325,7 @@ def main(variables):
             loop_trials = 100 # set at 100 for minimization purposes (increase)
             if remaining_trials < loop_trials:
                 loop_trials = remaining_trials
-            remaining_trials -= loop_trials  # increment for the number of trials
+            remaining_trials -= loop_trials # increment for the number of trials
         else:
             loop_trials = remaining_trials
             remaining_trials = 0
