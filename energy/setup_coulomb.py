@@ -14,7 +14,7 @@
 
 # System imports
 from distutils.core import *
-from distutils      import sysconfig
+from distutils import sysconfig
 
 # Third-party modules - we depend on numpy for everything
 import numpy
@@ -29,15 +29,14 @@ except AttributeError:
     numpy_include = numpy.get_numpy_include()
 
 # simple extension module
-coulomb = Extension(name="coulomb",sources=['./coulomb.f'],
-                   include_dirs = [numpy_include],
-                   )
+coulomb = Extension(name="coulomb", sources=['./coulomb.f'],
+                    include_dirs=[numpy_include],
+                    )
 
 # NumyTypemapTests setup
-setup(  name        = "COULOMB",
-        description = "Module calculates electrostatic energies",
-        author      = "Steven C. Howell",
-        version     = "0.1",
-        ext_modules = [coulomb]
-        )
-
+setup(name="COULOMB",
+      description="Module calculates electrostatic energies",
+      author="Steven C. Howell",
+      version="0.1",
+      ext_modules=[coulomb]
+      )
