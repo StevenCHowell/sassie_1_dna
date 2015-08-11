@@ -3,49 +3,48 @@
 # time using FORTRAN double loop, N=1000, iters=1000 (so 1*10^6 steps): 958.887075186 seconds
 # time using python double loop, N=1000, iters=1000 (so 1*10^6 steps):
 
+import time
+import glob
+import shutil
+import numpy as np
+
 import sassie.sasmol.sasmol as sasmol
-import sassie.simulate.monte_carlo.double_stranded_nucleic as double_stranded_nucleic
 import sassie.util.module_utilities as module_utilities
 import multiprocessing
-from sassie.simulate.monte_carlo.double_stranded_nucleic import *
+from sassie.simulate.monte_carlo.monte_carlo_utilities.double_stranded_nucleic.double_stranded_nucleic_torsion import *
 import sassie.interface.input_filter as input_filter
 import sassie.simulate.monte_carlo.monte_carlo as monte_carlo
-
-import numpy as np
-import time
-# improt string, os, locale, sys, random
 
 DEBUG = True
 app = 'long_ds_dna_test'
 
 
 def rotate_coarse_grained_beads(other_self, group_number):
-    '''
-    method to choose a cg bead to rotate
-    '''
+    """
+    method to choose a cg bead then rotate
+    """
 
     log = other_self.log
-    log.debug('in rotate_coarse_grained_beads')
 
-    vars = other_self.vars
-    nvars = other_self.vars.nvars
-    pgui = other_self.run_utils.print_gui
-    group_mol = other_self.group_molecules[group_number]
+    mvars = other_self.mvars
+    nvars = other_self.mvars.nvars
     run_path = other_self.runpath
 
-    n_flex_regions = vars.number_of_flexible_regions
-    theta_max = vars.delta_theta_array[group_number]
+    group_mol = other_self.group_molecules[group_number]
+    flexible_mol = nvars.flexible_mol[group_number]
+    flexible_mask = nvars.flexible_mask[group_number]
+    post_mol = nvars.post_mol[group_number]
+    post_mask = nvars.post_mask[group_number]
+
+    n_flex_regions = mvars.number_of_flexible_regions
+    theta_max = mvars.delta_theta_array[group_number]
 
     cg_flex_mol = nvars.coarse_grained_flexible_mol[group_number]
-    post_mol = nvars.post_mol[group_number]
     xyz_vectors = nvars.xyz_vectors[group_number]
     all_beads = nvars.all_beads[group_number]
-    flexible_mol = nvars.flexible_mol[group_number]
     all_overlap_mask = nvars.all_overlap_mask
     post_overlap_mask = nvars.post_overlap_mask[group_number]
     bead_masks = nvars.nucleic_acid_bead_masks[group_number]
-    post_mask = nvars.post_mask[group_number]
-    flexible_mask = nvars.flexible_mask[group_number]
 
     try:
         soft_rotation = nvars.soft_rotation
@@ -62,7 +61,7 @@ def rotate_coarse_grained_beads(other_self, group_number):
     try:
         persistence_length = nvars.persistence_length
     except:
-        persistence_length = nvars.persistence_length = 530.0  # 530 A
+        persistence_length = nvars.persistence_length = 530.0 # 530 A
 
     try:
         ds_na_type = nvars.double_stranded_nucleic_acid_type
@@ -72,7 +71,7 @@ def rotate_coarse_grained_beads(other_self, group_number):
     try:
         theta_z_max = nvars.delta_theta_z_array[group_number]
     except:
-        nvars.delta_theta_z_array = [1.0] * vars.number_of_flexible_regions
+        nvars.delta_theta_z_array = [theta_max] * n_flex_regions
         theta_z_max = nvars.delta_theta_z_array[group_number]
 
     try:
@@ -107,7 +106,7 @@ def rotate_coarse_grained_beads(other_self, group_number):
 
     n_cg_beads = cg_flex_mol.natoms()
 
-    ### not needed or long moves ###
+    ### not needed for long moves ###
     # s group_all_atom_out_file = '%s/na_group%d_%03d.dcd' % (run_path,
     # s                                                      group_number, i_loop)
     # s log.info('opening new dcd file to store trajectory: %s' % group_all_atom_out_file)
@@ -169,10 +168,9 @@ def rotate_coarse_grained_beads(other_self, group_number):
 
     post_coor = np.copy(post_mol.coor()[0])  # unique memory for each
 
-    (bead_unit_vectors, mean_bead_distance) = get_chain_parameters(other_self,
-                                                                   flex_coor)
+    (bead_unit_vectors, bead_distances) = get_chain_parameters(flex_coor)
 
-    bead_radius = np.floor(mean_bead_distance.min())
+    bead_radius = np.floor(bead_distances.min())
     post_radius = 0.4                                 # 1 A
 
     # effective width of the ds nucleic acid chain
@@ -187,7 +185,7 @@ def rotate_coarse_grained_beads(other_self, group_number):
     chain_width = nvars.chain_width[group_number]
     if chain_width is None:
         chain_width = na_energetics_width[ds_na_type.lower()]
-        if chain_width > mean_bead_distance.any():
+        if chain_width > bead_distances.any():
             chain_width = bead_radius
             log.debug('chain width set to %d Angstroms (so it is less than the '
                       'distance between beads)' % chain_width)
@@ -198,11 +196,11 @@ def rotate_coarse_grained_beads(other_self, group_number):
 
     # calculate the energy of the starting positions
     wca_energy_matrix_old = np.zeros((n_cg_beads, n_cg_beads))
-    bend_energy_old = bend_energy(
-        other_self, persistence_length, bead_unit_vectors, mean_bead_distance)
+    bend_energy_old = get_bend_energy(persistence_length, bead_unit_vectors,
+                                      bead_distances)
 
-    (wca_energy_old, wca_energy_matrix_old) = get_wca_energy(other_self,
-                                                             chain_width, flex_coor, wca_energy_matrix_old, 0)
+    (wca_energy_old, wca_energy_matrix_old) = get_wca_energy(
+        chain_width, flex_coor, wca_energy_matrix_old, 0)
 
     total_energy_old = bend_energy_old + wca_energy_old
 
@@ -235,19 +233,18 @@ def rotate_coarse_grained_beads(other_self, group_number):
 
         # generate a newly rotated model
         #!# may need to modify if there is no post coordinates #TEST#
-        (flex_coor[trial_bead:], xyz[:, trial_bead:], post_coor) = bead_rotate(
+        flex_coor[trial_bead:], xyz[:, trial_bead:], post_coor = bead_rotate(
             other_self, flex_coor[trial_bead - 1:], xyz[:, trial_bead - 1:],
             theta_xyz, post_coor, soft_rotation)
 
         # calculate the change in energy (dU) and the boltzman factor (p)
-        (bead_unit_vectors, bead_distances) = get_chain_parameters(
-            other_self, flex_coor)
-        bend_energy_new = bend_energy(other_self, persistence_length,
-                                      bead_unit_vectors, bead_distances)
+        bead_unit_vectors, bead_distances = get_chain_parameters(flex_coor)
+        bend_energy_new = get_bend_energy(persistence_length,
+                                          bead_unit_vectors, bead_distances)
 
         # ~~~~ DNA interaction energy  ~~~~~~#
-        (wca_energy_new, wca_energy_matrix_new) = get_wca_energy(other_self,
-                                                                 chain_width, flex_coor, wca_energy_matrix_old, trial_bead)
+        wca_energy_new, wca_energy_matrix_new = get_wca_energy(
+            chain_width, flex_coor, wca_energy_matrix_old, trial_bead)
 
         total_energy_new = bend_energy_new + wca_energy_new
         energy_change = total_energy_new - total_energy_old
@@ -486,27 +483,27 @@ def unpack_variables(other_self, variables):
 
     other_self.log.debug('in unpack_variables')
 
-    vars.runname = variables['runname'][0]
-    vars.dcdfile = variables['dcdfile'][0]
-    vars.pdbfile = variables['pdbfile'][0]
-    vars.number_of_flexible_regions = variables[
+    mvars.runname = variables['runname'][0]
+    mvars.dcdfile = variables['dcdfile'][0]
+    mvars.pdbfile = variables['pdbfile'][0]
+    mvars.number_of_flexible_regions = variables[
         'number_of_flexible_regions'][0]
-    vars.basis_string_array = variables['basis_string_array'][0]
-    vars.delta_theta_array = variables['delta_theta_array'][0]
-    vars.rotation_type_array = variables['rotation_type_array'][0]
-    vars.rotation_direction_array = variables['rotation_direction_array'][0]
-    vars.basis_overlap_array = variables['basis_overlap_array'][0]
-    vars.post_basis_string_array = variables['post_basis_string_array'][0]
-    vars.post_basis_overlap_array = variables['post_basis_overlap_array'][0]
-    vars.temperature = variables['temperature'][0]
-    vars.trial_steps = variables['trial_steps'][0]
-    vars.goback = variables['goback'][0]
-    vars.cutoff = variables['cutoff'][0]
+    mvars.basis_string_array = variables['basis_string_array'][0]
+    mvars.delta_theta_array = variables['delta_theta_array'][0]
+    mvars.rotation_type_array = variables['rotation_type_array'][0]
+    mvars.rotation_direction_array = variables['rotation_direction_array'][0]
+    mvars.basis_overlap_array = variables['basis_overlap_array'][0]
+    mvars.post_basis_string_array = variables['post_basis_string_array'][0]
+    mvars.post_basis_overlap_array = variables['post_basis_overlap_array'][0]
+    mvars.temperature = variables['temperature'][0]
+    mvars.trial_steps = variables['trial_steps'][0]
+    mvars.goback = variables['goback'][0]
+    mvars.cutoff = variables['cutoff'][0]
 
-    vars.nonbondflag = variables['nonbondflag'][0]
-    vars.seed = variables['seed'][0]
+    mvars.nonbondflag = variables['nonbondflag'][0]
+    mvars.seed = variables['seed'][0]
 
-    self.vars = vars
+    self.mvars = mvars
 
     return
 
@@ -521,7 +518,7 @@ def mag(vec):
     return np.sqrt(sumSquares)
 
 
-class vars():
+class mvars():
 
     def __init__(self, parent=None):
         pass
@@ -639,15 +636,15 @@ if __name__ == "__main__":
     fName = self.runpath + '/' + timestr + '_%dlp.o' % Llp
 
     cg_dna.write_pdb(fName[:-1] + 'pdb', 0, 'w')
-    cg_dna.open_dcd_write(fName[:-1] + 'dcd')
+    dcd_out = cg_dna.open_dcd_write(fName[:-1] + 'dcd')
     outData = open(fName, 'a')
     log.info("# L=%d\t iters=%d\t nsteps=%d\t theta_max=%f \n# moves\t rg/lp\t\t re/lp\t\t a\t r\n" %
-             (Llp, iters, nvars.trials, vars.delta_theta_array[0]))
+             (Llp, iters, nvars.trials, mvars.delta_theta_array[0]))
     outData.close()
 
     tic = time.time()
 
-    self.vars.nvars = nvars
+    self.mvars.nvars = nvars
 
     for i in xrange(iters):
         rotate_coarse_grained_beads(self, 0)
@@ -662,54 +659,16 @@ if __name__ == "__main__":
             (i + 1) * nvars.trials, rg_lp, h_lp, nvars.n_accept, nvars.n_reject))
         outData.close()
 
-        cg_dna.write_dcd_step(fName[:-1] + 'dcd', 0, i)
+        cg_dna.write_dcd_step(dcd_out, 0, i)
 
-    cg_dna.close_dcd_write(fName[:-1] + 'dcd')
+    cg_dna.close_dcd_write(dcd_out)
     toc = time.time() - tic
-    log.debug('run time =', toc, 'seconds')
+    log.debug('run time = %f seconds' % toc)
 
-    # recover an all atom representation
-    recover_aaDNA_model(cg_dna, xyz_vectors, allBeads)
+    log_files = glob.glob(app + '*log')
+    json_files = glob.glob(app + '*json')
+    out_files = log_files + json_files
+    for out_file in out_files:
+        shutil.move(out_file, os.path.join(app, out_file))
 
-
-'''
-to do: 
-reproduce one of the figures from D. Tree's paper (to verify the model is programmed the way they did)
-if the model is fine and good for the length scale of interest then go to the mapping
-plotting the energies 9
-
-
-sassie: mixed monte carlo -> molecular
-'''
-# all_atom_pdb = 'trimer_stacked.pdb'
-
-# s figure()
-# s x = range(iters)
-# s plot(x,rg)
-# s xlabel('iteration #')
-# s ylabel('Rg')
-
-#test = np.eye(4)
-# s est = np.zeros((10,4))
-# s est[:,1] = range(10)
-# s est[:,3] = 1
-# s est[:,0] = range(10)
-# s est[:,0] *= -1
-# s or i in xrange(4):
-# s        (T, Ti) = move2origin(test[i:])
-# s        test[i:] = np.dot(test[i:],T)
-# s        print 'T:\n', T
-# s        print 'moved2origin:\n', test[i:]
-# s
-# s        (A, Ai) = align2z(test[i:])
-# s        print 'before align: \n', test[i:]
-# s        test[i:] = np.dot(test[i:],A)
-# s        print 'x A ->\n', A
-# s        print 'aligned: \n', test[i:]
-# s        test[i:] = np.dot(test[i:],Ai)
-# s        print 'un-aligned:  \n', test[i:]
-# s
-# s        test[i:] = np.dot(test[i:],Ti)
-# s        print 'back2original:\n', test[i:]
-# s
-# s rint test
+    print '\m/ >.< \m/'
